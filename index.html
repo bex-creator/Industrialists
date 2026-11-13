@@ -53,7 +53,7 @@
         </button>
         <button id="btnResearch" class="glass-pill hover:border-violet-400/60 border border-violet-400/30 rounded-xl px-2.5 sm:px-3 py-1.5 flex items-center gap-2 transition cursor-pointer">
           <span class="text-violet-400 text-sm">🔬</span>
-          <div class="text-left"><div id="hudResearch" class="font-mono-num text-xs sm:text-sm font-bold text-white leading-none">15 RP</div><div class="text-[10px] text-violet-300 leading-tight font-semibold">Tech Tree [R]</div></div>
+          <div class="text-left"><div id="hudResearch" class="font-mono-num text-xs sm:text-sm font-bold text-white leading-none">15 RP</div><div class="text-[10px] text-violet-300 leading-tight font-semibold">Tech Tree [T]</div></div>
         </button>
       </div>
       <div class="flex items-center gap-1.5 pointer-events-auto">
@@ -67,7 +67,8 @@
           <span id="fpsDot" class="w-2 h-2 rounded-full bg-emerald-400"></span><span id="hudFps" class="font-mono-num text-white">60 FPS</span><span id="hudPresetLabel" class="hidden sm:inline text-[11px] text-sky-300">Insane</span>
         </button>
         <button id="btnAudio" class="glass-pill hover:border-slate-400/50 rounded-xl px-2.5 py-1.5 text-xs font-semibold text-slate-200 cursor-pointer">🔊</button>
-        <button id="btnSave" class="glass-pill hover:border-emerald-400/50 rounded-xl px-2.5 py-1.5 text-xs font-semibold text-emerald-300 hidden sm:inline-flex items-center gap-1 cursor-pointer">💾 Save</button>
+        <span id="autoSaveStatus" class="hidden lg:inline-flex glass-pill rounded-xl px-2.5 py-1.5 text-[10px] font-semibold text-emerald-300">Auto-save enabled</span>
+        <button id="btnSave" class="glass-pill hover:border-emerald-400/50 rounded-xl px-2.5 py-1.5 text-xs font-semibold text-emerald-300 hidden sm:inline-flex items-center gap-1 cursor-pointer" title="Manual save slots">💾 Save</button>
         <button id="btnMainMenu" class="glass-pill hover:border-slate-400/50 rounded-xl px-2.5 py-1.5 text-xs font-semibold text-slate-200 cursor-pointer">☰</button>
       </div>
     </header>
@@ -190,7 +191,7 @@
           <div id="inspStorageList" class="space-y-1 pt-1"></div>
         </div>
         <div class="flex items-center gap-1.5 pt-1">
-          <button id="btnInspRotate" class="flex-1 py-2 px-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-600 font-semibold text-white cursor-pointer">🔄 Rotate [T]</button>
+          <button id="btnInspRotate" class="flex-1 py-2 px-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-600 font-semibold text-white cursor-pointer">🔄 Rotate [R]</button>
           <button id="btnInspRepair" class="flex-1 py-2 px-2.5 rounded-xl bg-sky-500/20 hover:bg-sky-500/30 border border-sky-400/40 font-semibold text-sky-200 cursor-pointer">🔧 Repair</button>
           <button id="btnInspDelete" class="py-2 px-2.5 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 border border-rose-400/40 font-semibold text-rose-300 cursor-pointer">🗑</button>
         </div>
@@ -202,14 +203,14 @@
     <footer class="fixed bottom-2.5 left-2.5 right-2.5 z-20 flex flex-col items-center pointer-events-none">
       <div id="toolHelperBanner" class="glass-pill rounded-full px-3.5 py-1 mb-2 text-[11px] font-medium text-slate-200 flex items-center gap-3 pointer-events-auto">
         <span id="toolHelperText">Select a structure below (Green = IN • Orange = OUT • Arrow = Facing)</span>
-        <button id="btnRotateTool" class="px-2 py-0.5 rounded-full bg-sky-500/25 border border-sky-400/40 text-sky-200 font-semibold hover:bg-sky-500/35 cursor-pointer">Dir: N [T]</button>
+        <button id="btnRotateTool" class="px-2 py-0.5 rounded-full bg-sky-500/25 border border-sky-400/40 text-sky-200 font-semibold hover:bg-sky-500/35 cursor-pointer">Dir: N [R]</button>
         <button id="btnCancelTool" class="hidden px-2 py-0.5 rounded-full bg-rose-500/25 border border-rose-400/40 text-rose-200 font-semibold hover:bg-rose-500/35 cursor-pointer">Cancel [Esc]</button>
       </div>
       <div class="w-full max-w-6xl glass-panel rounded-2xl p-2 pointer-events-auto">
         <div class="flex items-center justify-between gap-2 pb-1.5 mb-1.5 border-b border-slate-700/60 overflow-x-auto dock-scroll">
           <div id="categoryTabs" class="flex items-center gap-1"></div>
           <div class="flex items-center gap-2 pr-1">
-            <button id="btnDockResearch" class="px-2.5 py-1 rounded-xl text-xs font-bold bg-violet-500/20 hover:bg-violet-500/35 border border-violet-400/45 text-violet-200 whitespace-nowrap transition cursor-pointer">🔬 Full Research Tree [R]</button>
+            <button id="btnDockResearch" class="px-2.5 py-1 rounded-xl text-xs font-bold bg-violet-500/20 hover:bg-violet-500/35 border border-violet-400/45 text-violet-200 whitespace-nowrap transition cursor-pointer">🔬 Full Research Tree [T]</button>
           </div>
         </div>
         <div id="buildCardsStrip" class="flex items-stretch gap-2 overflow-x-auto dock-scroll pb-1"></div>
@@ -245,10 +246,21 @@
         <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-sky-500/20 border border-sky-400/40 text-sky-300 text-xs font-bold uppercase tracking-wider"><span>🏭</span> PC Ultimate 3D Edition</div>
         <div><h1 class="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">INDUSTRIAL EMPIRE</h1><p class="text-xs sm:text-sm text-slate-300 mt-2 leading-relaxed">Build complex supply chains on a beautiful 60x60 island with real-time reflections and shadows.</p></div>
         <div class="grid grid-cols-1 gap-2.5 pt-1">
-          <button id="btnStartGuided" class="w-full py-3 px-4 rounded-2xl bg-gradient-to-r from-sky-500 to-emerald-500 hover:from-sky-400 hover:to-emerald-400 text-slate-950 font-extrabold text-sm shadow-lg transition cursor-pointer">🎯 Start Guided Campaign ($18,000)</button>
-          <button id="btnStartSandbox" class="w-full py-2.5 px-4 rounded-2xl bg-violet-500/25 hover:bg-violet-500/35 border border-violet-400/45 text-violet-200 font-bold text-sm transition cursor-pointer">⚛️ Launch Sandbox Mode</button>
-          <button id="btnContinueSave" class="hidden w-full py-2.5 px-4 rounded-2xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-400/40 text-emerald-200 font-bold text-sm transition cursor-pointer">💾 Continue Saved Empire</button>
+          <button id="btnContinueSave" class="hidden w-full py-3 px-4 rounded-2xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-400/40 text-emerald-200 font-bold text-sm shadow-lg transition cursor-pointer">▶ Continue Game</button>
+          <button id="btnStartGuided" class="w-full py-2.5 px-4 rounded-2xl bg-gradient-to-r from-sky-500 to-emerald-500 hover:from-sky-400 hover:to-emerald-400 text-slate-950 font-extrabold text-sm transition cursor-pointer">🎯 Start New Game ($18,000)</button>
+          <button id="btnStartSandbox" class="w-full py-2.5 px-4 rounded-2xl bg-violet-500/25 hover:bg-violet-500/35 border border-violet-400/45 text-violet-200 font-bold text-sm transition cursor-pointer">⚛️ Sandbox Mode</button>
+          <button id="btnMultiSaves" class="w-full py-2.5 px-4 rounded-2xl bg-slate-800/80 hover:bg-slate-700 border border-slate-600 text-slate-300 font-bold text-sm transition cursor-pointer">📁 Multi Saves...</button>
         </div>
+      </div>
+    </div>
+
+    <div id="saveLoadModal" class="hidden fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4">
+      <div class="glass-panel rounded-3xl max-w-md w-full p-5 sm:p-6 border border-sky-400/30 space-y-4 pointer-events-auto">
+        <div class="flex items-center justify-between border-b border-slate-700/70 pb-3">
+          <h2 id="slModalTitle" class="text-lg font-extrabold text-white">Save / Load Game</h2>
+          <button id="btnCloseSaveLoad" class="text-slate-400 hover:text-white px-2 py-1 rounded cursor-pointer">✕</button>
+        </div>
+        <div id="slSlotContainer" class="space-y-3"></div>
       </div>
     </div>
   </div>
@@ -256,8 +268,8 @@
   <script>
     (() => {
       'use strict';
-      const GRID_SIZE = 120; const HALF_GRID = GRID_SIZE / 2; const SAVE_KEY = 'industrial_empire_pc_ultimate';
-      let state = null; let nextBuildingId = 1; let sessionBackupSave = null;
+      const GRID_SIZE = 120; const HALF_GRID = GRID_SIZE / 2;
+      let state = null; let nextBuildingId = 1; let currentSaveSlot = 1;
       function isChromebookDevice() { return false; } // PC Edition defaults to Insane
       const DIRS = [ { dx: 0, dz: -1, name: 'N', angle: 0 }, { dx: 1, dz: 0, name: 'E', angle: -Math.PI / 2 }, { dx: 0, dz: 1, name: 'S', angle: Math.PI }, { dx: -1, dz: 0, name: 'W', angle: Math.PI / 2 } ];
       function getFootprintSize(def, dir = 0) { const bw = def?.w || 1; const bd = def?.d || 1; return (dir % 2 === 1) ? { w: bd, d: bw } : { w: bw, d: bd }; }
@@ -301,7 +313,12 @@
         enriched_fuel:   { name: 'Enriched Fuel Rod',color: '#bef264', value: 490 },
         industrial_pack: { name: 'Mechatronics',     color: '#c084fc', value: 560 },
         ev_mech:         { name: 'Autonomous Mech',  color: '#fbbf24', value: 1180 },
-        aerospace_frame: { name: 'Orbital Module',   color: '#fb7185', value: 1850 }
+        aerospace_frame: { name: 'Orbital Module',   color: '#fb7185', value: 1850 },
+        graphene:        { name: 'Graphene',         color: '#111827', value: 1200 },
+        nanotubes:       { name: 'Carbon Nanotubes', color: '#374151', value: 2500 },
+        quantum_chip:    { name: 'Quantum Processor',color: '#8b5cf6', value: 4800 },
+        antimatter:      { name: 'Antimatter',       color: '#f43f5e', value: 15000, fluid: true },
+        dyson_panel:     { name: 'Dyson Panel',      color: '#fbbf24', value: 35000 }
       };
 
       const DEPOSIT_PALETTE = {
@@ -349,8 +366,9 @@
         coal_plant: { id: 'coal_plant', name: 'Coal Power Plant', category: 'power', icon: '🏭', cost: 600, power: -18, powerRange: 8.5, pollution: 4.2, workers: 8, w: 2, d: 2, hasInPort: true, desc: 'Uses Coal.' },
         wind_turbine: { id: 'wind_turbine', name: 'Wind Turbine', category: 'power', icon: '🌬️', cost: 420, power: -8, powerRange: 8.5, pollution: 0, workers: 1, w: 1, d: 1 },
         solar_array: { id: 'solar_array', name: 'Solar Array', category: 'power', icon: '☀️', cost: 950, power: -22, powerRange: 9.0, pollution: 0, workers: 2, w: 2, d: 2, unlock: 'clean_grid' },
-        nuclear_plant: { id: 'nuclear_plant', name: 'Nuclear Reactor', category: 'power', icon: '☢️', cost: 5800, power: -95, powerRange: 12.0, pollution: 0.4, workers: 16, w: 3, d: 3, unlock: 'nuclear_fission', hasInPort: true },
-        fusion_reactor: { id: 'fusion_reactor', name: 'Tokamak Fusion', category: 'power', icon: '⚛️', cost: 14000, power: -240, powerRange: 15.0, pollution: 0, workers: 20, w: 3, d: 3, unlock: 'tokamak_fusion' },
+        nuclear_plant: { id: 'nuclear_plant', name: 'Nuclear Reactor', category: 'power', icon: '☢️', cost: 5800, power: -250, powerRange: 12.0, pollution: 0.4, workers: 16, w: 3, d: 3, unlock: 'nuclear_fission', hasInPort: true },
+        fusion_reactor: { id: 'fusion_reactor', name: 'Tokamak Fusion', category: 'power', icon: '⚛️', cost: 18000, power: -1200, powerRange: 18.0, pollution: 0, workers: 20, w: 3, d: 3, unlock: 'tokamak_fusion' },
+        antimatter_reactor: { id: 'antimatter_reactor', name: 'Antimatter Reactor', category: 'power', icon: '🔮', cost: 150000, power: -2500, powerRange: 30.0, pollution: 0, workers: 10, w: 3, d: 3, unlock: 'antimatter_containment', hasInPort: true },
 
         // Extraction
         iron_mine: { id: 'iron_mine', name: 'Iron Mine', category: 'extraction', icon: '⛏️', cost: 320, power: 2.0, pollution: 1.1, workers: 8, w: 2, d: 2, deposit: 'iron', output: 'iron_ore', cycle: 2.0, hasOutPort: true },
@@ -390,14 +408,19 @@
         recreation_dome: { id: 'recreation_dome', name: 'Biosphere Dome', category: 'workforce', icon: '🎡', cost: 2200, power: 3.5, pollution: -2.0, moraleBonus: 32, w: 3, d: 3, unlock: 'emissions_control' },
 
         // High-Tech
-        electronics_fab: { id: 'electronics_fab', name: 'Semiconductor Fab', category: 'hightech', icon: '💻', cost: 2400, power: 7.5, pollution: 0.9, workers: 14, w: 3, d: 2, unlock: 'precision_logistics', hasInPort: true, hasOutPort: true, recipes: [ { in: { silicon_wafer: 1, gold_ore: 1, industrial_acid: 1 }, out: { circuit: 1 }, time: 3.6 } ] },
-        superconductor_lab: { id: 'superconductor_lab', name: 'Cryo-Superconductors', category: 'hightech', icon: '🧊', cost: 4200, power: 15.0, pollution: 0.5, workers: 18, w: 3, d: 2, unlock: 'precision_logistics', hasInPort: true, hasOutPort: true, recipes: [ { in: { titanium_ore: 1, copper_wire: 2, ammonia: 1 }, out: { superconductor: 1 }, time: 4.5 } ] },
-        turbine_works: { id: 'turbine_works', name: 'Precision Turbine', category: 'hightech', icon: '⚙️', cost: 3200, power: 9.0, pollution: 1.1, workers: 16, w: 3, d: 2, unlock: 'precision_logistics', hasInPort: true, hasOutPort: true, recipes: [ { in: { steel: 2, titanium_ore: 1, magnets: 1 }, out: { turbine_core: 1 }, time: 4.0 } ] },
-        assembler: { id: 'assembler', name: 'Mechatronics Fab', category: 'hightech', icon: '🤖', cost: 4200, power: 11.0, pollution: 1.2, workers: 18, w: 3, d: 3, unlock: 'precision_logistics', hasInPort: true, hasOutPort: true, recipes: [ { in: { steel: 1, circuit: 1, magnets: 1 }, out: { industrial_pack: 1 }, time: 4.2 } ] },
-        ev_mech_plant: { id: 'ev_mech_plant', name: 'Mech Assembly Plant', category: 'hightech', icon: '🦾', cost: 6400, power: 14.0, pollution: 1.0, workers: 20, w: 3, d: 3, unlock: 'industrial_automation', hasInPort: true, hasOutPort: true, recipes: [ { in: { battery_cell: 2, industrial_pack: 1, glass: 1 }, out: { ev_mech: 1 }, time: 4.8 } ] },
-        aerospace_works: { id: 'aerospace_works', name: 'Aerospace Hangar', category: 'hightech', icon: '🚀', cost: 8800, power: 16.0, pollution: 1.5, workers: 24, w: 3, d: 3, unlock: 'aerospace_eng', hasInPort: true, hasOutPort: true, recipes: [ { in: { turbine_core: 1, superconductor: 2, titanium_ore: 2, glass: 1 }, out: { aerospace_frame: 1 }, time: 5.6 } ] },
-        research_center: { id: 'research_center', name: 'R&D Laboratory', category: 'hightech', icon: '🔬', cost: 750, power: 3.0, pollution: 0, workers: 8, w: 2, d: 2, rpRate: 1.4 },
-        advanced_research: { id: 'advanced_research', name: 'Quantum Computer', category: 'hightech', icon: '🧠', cost: 5200, power: 12.0, pollution: 0, workers: 12, w: 3, d: 3, unlock: 'advanced_research', rpRate: 4.8 },
+        electronics_fab: { id: 'electronics_fab', name: 'Semiconductor Fab', category: 'hightech', icon: '💻', cost: 2400, power: 25.0, pollution: 0.9, workers: 14, w: 3, d: 2, unlock: 'precision_logistics', hasInPort: true, hasOutPort: true, recipes: [ { in: { silicon_wafer: 1, gold_ore: 1, industrial_acid: 1 }, out: { circuit: 1 }, time: 3.6 } ] },
+        superconductor_lab: { id: 'superconductor_lab', name: 'Cryo-Superconductors', category: 'hightech', icon: '🧊', cost: 4200, power: 50.0, pollution: 0.5, workers: 18, w: 3, d: 2, unlock: 'precision_logistics', hasInPort: true, hasOutPort: true, recipes: [ { in: { titanium_ore: 1, copper_wire: 2, ammonia: 1 }, out: { superconductor: 1 }, time: 4.5 } ] },
+        turbine_works: { id: 'turbine_works', name: 'Precision Turbine', category: 'hightech', icon: '⚙️', cost: 3200, power: 35.0, pollution: 1.1, workers: 16, w: 3, d: 2, unlock: 'precision_logistics', hasInPort: true, hasOutPort: true, recipes: [ { in: { steel: 2, titanium_ore: 1, magnets: 1 }, out: { turbine_core: 1 }, time: 4.0 } ] },
+        assembler: { id: 'assembler', name: 'Mechatronics Fab', category: 'hightech', icon: '🤖', cost: 4200, power: 40.0, pollution: 1.2, workers: 18, w: 3, d: 3, unlock: 'precision_logistics', hasInPort: true, hasOutPort: true, recipes: [ { in: { steel: 1, circuit: 1, magnets: 1 }, out: { industrial_pack: 1 }, time: 4.2 } ] },
+        ev_mech_plant: { id: 'ev_mech_plant', name: 'Mech Assembly Plant', category: 'hightech', icon: '🦾', cost: 6400, power: 75.0, pollution: 1.0, workers: 20, w: 3, d: 3, unlock: 'industrial_automation', hasInPort: true, hasOutPort: true, recipes: [ { in: { battery_cell: 2, industrial_pack: 1, glass: 1 }, out: { ev_mech: 1 }, time: 4.8 } ] },
+        aerospace_works: { id: 'aerospace_works', name: 'Aerospace Hangar', category: 'hightech', icon: '🚀', cost: 8800, power: 120.0, pollution: 1.5, workers: 24, w: 3, d: 3, unlock: 'aerospace_eng', hasInPort: true, hasOutPort: true, recipes: [ { in: { turbine_core: 1, superconductor: 2, titanium_ore: 2, glass: 1 }, out: { aerospace_frame: 1 }, time: 5.6 } ] },
+        graphene_loom: { id: 'graphene_loom', name: 'Graphene Loom', category: 'hightech', icon: '🕸️', cost: 12500, power: 180.0, pollution: 2.5, workers: 20, w: 3, d: 2, unlock: 'exotic_materials', hasInPort: true, hasOutPort: true, recipes: [ { in: { coal: 3, industrial_acid: 1 }, out: { graphene: 2 }, time: 4.0 } ] },
+        nanotube_fab: { id: 'nanotube_fab', name: 'Nanotube Fab', category: 'hightech', icon: '🧬', cost: 18000, power: 300.0, pollution: 1.5, workers: 24, w: 3, d: 3, unlock: 'exotic_materials', hasInPort: true, hasOutPort: true, recipes: [ { in: { graphene: 2, plastic: 1, natural_gas: 1 }, out: { nanotubes: 1 }, time: 5.0 } ] },
+        quantum_forge: { id: 'quantum_forge', name: 'Quantum Forge', category: 'hightech', icon: '🌌', cost: 25000, power: 550.0, pollution: 0.5, workers: 30, w: 3, d: 3, unlock: 'quantum_mechanics', hasInPort: true, hasOutPort: true, recipes: [ { in: { superconductor: 2, circuit: 2, gold_ore: 1 }, out: { quantum_chip: 1 }, time: 6.0 } ] },
+        antimatter_synth: { id: 'antimatter_synth', name: 'Antimatter Synth', category: 'hightech', icon: '⚡', cost: 45000, power: 2200.0, pollution: 0, workers: 40, w: 4, d: 3, unlock: 'antimatter_containment', hasInPort: true, hasOutPort: true, recipes: [ { in: { hydrogen: 3, rare_earths: 2, magnets: 1 }, out: { antimatter: 1 }, time: 8.0 } ] },
+        dyson_assembler: { id: 'dyson_assembler', name: 'Dyson Assembler', category: 'hightech', icon: '☀️', cost: 85000, power: 3500.0, pollution: 5.0, workers: 50, w: 4, d: 4, unlock: 'megastructure_eng', hasInPort: true, hasOutPort: true, recipes: [ { in: { aerospace_frame: 1, nanotubes: 2, quantum_chip: 1 }, out: { dyson_panel: 1 }, time: 10.0 } ] },
+        research_center: { id: 'research_center', name: 'R&D Laboratory', category: 'hightech', icon: '🔬', cost: 750, power: 8.0, pollution: 0, workers: 8, w: 2, d: 2, rpRate: 1.4 },
+        advanced_research: { id: 'advanced_research', name: 'Quantum Computer', category: 'hightech', icon: '🧠', cost: 5200, power: 85.0, pollution: 0, workers: 12, w: 3, d: 3, unlock: 'advanced_research', rpRate: 4.8 },
 
         // Tools
         power_wire: { id: 'power_wire', name: 'Power Line [P]', category: 'tools', icon: '🔌', cost: 15, power: 0, w: 1, d: 1, isTool: true },
@@ -442,7 +465,12 @@
         digital_twins: { id: 'digital_twins', branch: 'science', tier: 2, req: ['scientific_method'], icon: '📐', name: 'Digital Twins', rp: 45, cost: 1900, desc: '-40% mechanical wear.' },
         advanced_research: { id: 'advanced_research', branch: 'science', tier: 3, req: ['digital_twins'], icon: '🧠', name: 'Quantum Computing', rp: 110, cost: 5500, desc: 'Unlocks Quantum Computer.' },
         ai_grid_orchestration: { id: 'ai_grid_orchestration', branch: 'science', tier: 4, req: ['advanced_research'], icon: '🛰️', name: 'AI Orchestration', rp: 160, cost: 8500, desc: '+20% factory efficiency.' },
-        neural_ergonomics: { id: 'neural_ergonomics', branch: 'science', tier: 5, req: ['ai_grid_orchestration'], icon: '😄', name: 'Neural Ergonomics', rp: 170, cost: 9200, desc: 'Worker strain cut in half.' }
+        neural_ergonomics: { id: 'neural_ergonomics', branch: 'science', tier: 5, req: ['ai_grid_orchestration'], icon: '😄', name: 'Neural Ergonomics', rp: 170, cost: 9200, desc: 'Worker strain cut in half.' },
+
+        megastructure_eng: { id: 'megastructure_eng', branch: 'logistics', tier: 6, req: ['global_supply_network'], icon: '☀️', name: 'Megastructures', rp: 350, cost: 25000, desc: 'Unlocks Dyson Assembler.' },
+        exotic_materials: { id: 'exotic_materials', branch: 'metallurgy', tier: 6, req: ['aerospace_eng'], icon: '🕸️', name: 'Exotic Materials', rp: 280, cost: 18000, desc: 'Unlocks Graphene & Nanotubes.' },
+        antimatter_containment: { id: 'antimatter_containment', branch: 'power', tier: 6, req: ['tokamak_fusion'], icon: '🔮', name: 'Antimatter Tech', rp: 400, cost: 35000, desc: 'Unlocks Antimatter Synth & Reactor.' },
+        quantum_mechanics: { id: 'quantum_mechanics', branch: 'science', tier: 6, req: ['neural_ergonomics'], icon: '🌌', name: 'Quantum Mechanics', rp: 320, cost: 22000, desc: 'Unlocks Quantum Forge.' }
       };
 
       const OBJECTIVES = [
@@ -453,6 +481,32 @@
         { step: 'Directive 5 / 6', title: 'Heavy Industry', desc: 'Operate Foundry/Refinery with >80% Morale.', rewardCash: 10000, rewardRp: 50, check: s => { return { cur: (s.buildings.some(b=>['steel_foundry','refinery','chemical_plant','cement_kiln'].includes(b.type))?1:0) + ((s.happiness||0)>=80?1:0), max: 2 }; } },
         { step: 'Directive 6 / 6', title: 'Industrial Mastermind', desc: 'Unlock 4 techs & reach $35,000.', rewardCash: 20000, rewardRp: 100, check: s => { return { cur: Math.min(4, Object.keys(s.unlockedTech).length) + ((s.money||0)>=35000?1:0), max: 5 }; } }
       ];
+
+      const SaveSystem = (() => {
+        const SLOTS = [1, 2, 3];
+        function getSave(slot) { try { const r = localStorage.getItem(`ie_save_${slot}`); return r ? JSON.parse(r) : null; } catch(e) { return null; } }
+        function getAllSaves() { return SLOTS.map(s => ({ slot: s, data: getSave(s) })); }
+        function getAutoSave() { try { const r = localStorage.getItem('ie_autosave'); return r ? JSON.parse(r) : null; } catch(e) { return null; } }
+        function getMostRecent() {
+          const saves = getAllSaves().filter(s => s.data && s.data.timestamp);
+          const auto = getAutoSave();
+          if (auto && auto.state && auto.timestamp) saves.push({ slot: 'AUTO', data: auto });
+          saves.sort((a, b) => b.data.timestamp - a.data.timestamp);
+          return saves.length > 0 ? saves[0] : null;
+        }
+        function saveToSlot(slot, sState, sNextId) {
+          const payload = { state: sState, nextBuildingId: sNextId, timestamp: Date.now(), summary: `$${Math.floor(sState.money).toLocaleString()} • ${sState.lastHousingStats?.housed||0} Staffed • ${sState.sandbox ? 'Sandbox' : 'Campaign'}` };
+          try { localStorage.setItem(`ie_save_${slot}`, JSON.stringify(payload)); return true; } catch(e) { return false; }
+        }
+        function saveAuto(sState, sNextId) {
+          if (!sState) return false;
+          const payload = { state: sState, nextBuildingId: sNextId, timestamp: Date.now(), summary: `$${Math.floor(sState.money).toLocaleString()} • ${sState.lastHousingStats?.housed||0} Staffed • ${sState.sandbox ? 'Sandbox' : 'Campaign'}` };
+          try { localStorage.setItem('ie_autosave', JSON.stringify(payload)); return true; } catch(e) { return false; }
+        }
+        function loadFromSlot(slot) { const s = getSave(slot); if (s && s.state) return s; return null; }
+        function deleteSlot(slot) { try { localStorage.removeItem(`ie_save_${slot}`); return true; } catch(e) { return false; } }
+        return { getSave, getAllSaves, getAutoSave, getMostRecent, saveToSlot, saveAuto, loadFromSlot, deleteSlot };
+      })();
 
       const SoundFX = (() => {
         let ctx = null, muted = false;
@@ -618,7 +672,13 @@
           let cG = 0, cD = 0; const pMult = (s.unlockedTech.grid_optimization ? 1.2 : 1) * (s.unlockedTech.breeder_reactors ? 1.35 : 1);
           for (const cb of comp) {
             const d = BUILDINGS[cb.type]; if (!d) continue; const gsm = (d.workers || 0) > 0 ? (cb.staffRatio ?? 0) : 1;
-            if (d.power < 0) { let g = -d.power * pMult * gsm; if (cb.type === 'coal_plant' && (cb.inv.coal || 0) > 0) g *= 1.5; if (cb.type === 'nuclear_plant' && (cb.inv.enriched_fuel || 0) > 0) g *= 1.4; cG += g; } else if (d.power > 0) cD += d.power;
+            if (d.power < 0) { 
+              let g = -d.power * pMult * gsm; 
+              if (cb.type === 'coal_plant' && (cb.inv.coal || 0) > 0) g *= 1.5; 
+              if (cb.type === 'nuclear_plant' && (cb.inv.enriched_fuel || 0) > 0) g *= 1.4; 
+              if (cb.type === 'antimatter_reactor') { if ((cb.inv.antimatter || 0) > 0) g *= 5.0; else g *= 0.05; }
+              cG += g; 
+            } else if (d.power > 0) cD += d.power;
           }
           const rt = cD > 0 ? Math.min(1, cG / cD) : 1; for (const cb of comp) cb.powerRatio = rt;
           tGen += cG; tDem += cD;
@@ -653,6 +713,7 @@
 
           if (b.type === 'coal_plant' && (b.inv.coal || 0) > 0) { b.progress += simDt * 0.25; if (b.progress >= 1) { b.progress -= 1; b.inv.coal = Math.max(0, b.inv.coal - 1); } }
           if (b.type === 'nuclear_plant' && (b.inv.enriched_fuel || 0) > 0) { b.progress += simDt * 0.14; if (b.progress >= 1) { b.progress -= 1; b.inv.enriched_fuel = Math.max(0, b.inv.enriched_fuel - 1); } }
+          if (b.type === 'antimatter_reactor' && (b.inv.antimatter || 0) > 0) { b.progress += simDt * 0.08; if (b.progress >= 1) { b.progress -= 1; b.inv.antimatter = Math.max(0, b.inv.antimatter - 1); } }
 
           if (eff > 0 && (d.output || d.recipes || d.rpRate)) b.condition = Math.max(25, b.condition - simDt * 0.11 * (s.unlockedTech.digital_twins ? 0.6 : 1.0));
           if (d.pollution) nPol += d.pollution * eff * (d.pollution < 0 ? (s.unlockedTech.zero_waste_catalysis ? 1.4 : 1.0) : (s.unlockedTech.zero_waste_catalysis ? 0.75 : 1.0));
@@ -777,6 +838,7 @@
       const Graphics = (() => {
         const canvas = document.getElementById('gameCanvas');
         let renderer, scene, camera, sunLight, hemiLight, waterMesh, waterUniforms, skyDome, skyUniforms, cloudGroup;
+        let cubeRenderTarget, cubeCamera, staticEnv;
         let gridHelper, hoverGroup, hoverPadMesh, hoverArrowMesh, hoverInGroup, hoverOutGroup, rangeRingMesh, wirePreviewLine;
         let worldGroup, buildingsGroup, wiresGroup, dynamicGroup;
         const buildingMeshes = new Map(), wireMeshes = new Map(), cargoMeshes = [], truckMeshes = [], botMeshes = [], workerMeshes = [];
@@ -812,12 +874,17 @@
           renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
           scene = new THREE.Scene(); scene.background = new THREE.Color(0x0c1e35); scene.fog = new THREE.FogExp2(0x163252, 0.0085);
-          try { const pmrem = new THREE.PMREMGenerator(renderer); scene.environment = pmrem.fromEquirectangular(TextureBank.getEquirectangularEnvTexture()).texture; pmrem.dispose(); } catch (_) {}
+          try { const pmrem = new THREE.PMREMGenerator(renderer); staticEnv = pmrem.fromEquirectangular(TextureBank.getEquirectangularEnvTexture()).texture; pmrem.dispose(); } catch (_) {}
+          
+          cubeRenderTarget = new THREE.WebGLCubeRenderTarget(512, { generateMipmaps: true, minFilter: THREE.LinearMipmapLinearFilter });
+          cubeCamera = new THREE.CubeCamera(1, 1000, cubeRenderTarget);
+          scene.add(cubeCamera);
+
           camera = new THREE.PerspectiveCamera(42, window.innerWidth / window.innerHeight, 0.5, 240);
           hemiLight = new THREE.HemisphereLight(0xbae6fd, 0x1e3a2f, 0.72); scene.add(hemiLight);
 
           sunLight = new THREE.DirectionalLight(0xfffbeb, 1.35); sunLight.position.set(24, 34, 18); sunLight.castShadow = true;
-          sunLight.shadow.mapSize.set(4096, 4096); sunLight.shadow.camera.near = 2; sunLight.shadow.camera.far = 110; const d = 45;
+          sunLight.shadow.mapSize.set(8192, 8192); sunLight.shadow.camera.near = 2; sunLight.shadow.camera.far = 110; const d = 55;
           sunLight.shadow.camera.left = -d; sunLight.shadow.camera.right = d; sunLight.shadow.camera.top = d; sunLight.shadow.camera.bottom = -d;
           sunLight.shadow.bias = -0.0002; sunLight.shadow.normalBias = 0.02; scene.add(sunLight); scene.add(sunLight.target);
 
@@ -844,9 +911,15 @@
           const labelEl = document.getElementById('hudPresetLabel'); if (labelEl) labelEl.textContent = { insane: 'Insane', auto: 'Auto', eco: 'Eco' }[preset] || preset;
           document.querySelectorAll('.preset-btn').forEach(btn => { const act = btn.dataset.preset === preset; btn.classList.toggle('border-sky-400/60', act); btn.classList.toggle('bg-sky-500/20', act); });
           if (!renderer) return; const baseDpr = window.devicePixelRatio || 1;
-          if (preset === 'eco') { dynamicScale = 0.85; renderer.shadowMap.enabled = false; }
-          else if (preset === 'auto') { dynamicScale = 1.0; renderer.shadowMap.enabled = false; }
-          else { dynamicScale = Math.min(2.0, baseDpr * 1.5); renderer.shadowMap.enabled = true; sunLight.shadow.mapSize.set(4096, 4096); }
+          if (preset === 'eco') { dynamicScale = 0.85; renderer.shadowMap.enabled = false; scene.environment = staticEnv; }
+          else if (preset === 'auto') { dynamicScale = 1.0; renderer.shadowMap.enabled = false; scene.environment = staticEnv; }
+          else { 
+            dynamicScale = Math.min(2.0, baseDpr * 1.5); 
+            renderer.shadowMap.enabled = true; 
+            if (sunLight.shadow.map) { sunLight.shadow.map.dispose(); sunLight.shadow.map = null; }
+            sunLight.shadow.mapSize.set(8192, 8192); 
+            scene.environment = cubeRenderTarget ? cubeRenderTarget.texture : staticEnv; 
+          }
           renderer.setPixelRatio(dynamicScale); const sc = document.getElementById('hudRenderScale'); if (sc) sc.textContent = `${dynamicScale.toFixed(2)}×`;
         }
 
@@ -902,15 +975,91 @@
           const pad = new THREE.Mesh(new THREE.BoxGeometry(bw * 0.96, 0.08, bd * 0.96), concMat); pad.position.y = 0.04; pad.receiveShadow = true; group.add(pad); attachDirectionalMarkers(group, def, bw, bd);
 
           if (b.type === 'power_pole') { const m = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.09, 1.35, 8), steelMat); m.position.y = 0.7; m.castShadow = true; const a = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.05, 0.05), steelMat); a.position.y = 1.28; const c = new THREE.Mesh(new THREE.SphereGeometry(0.07, 8, 8), new THREE.MeshStandardMaterial({ color: 0xfbbf24, emissive: 0xf59e0b, emissiveIntensity: 0.8 })); c.position.y = 1.4; group.add(m, a, c); }
+          else if (b.type === 'water_pump') {
+            const hs = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.6, 0.6), new THREE.MeshStandardMaterial({ map: TextureBank.getWallTexture('#1e3a5f', '#38bdf8', false) })); hs.position.set(0, 0.38, 0.1); hs.castShadow = true;
+            const p = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.8), steelMat); p.position.set(0, 0.4, -0.35); p.castShadow = true;
+            const wh = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.25, 0.08, 12), new THREE.MeshStandardMaterial({ color: 0xf59e0b })); wh.rotation.x = Math.PI / 2; wh.position.set(0, 0.8, -0.35); anim.wheel = wh; group.add(hs, p, wh);
+          }
+          else if (b.type === 'lithium_extractor') {
+            const pool = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.1, 1.6), new THREE.MeshStandardMaterial({ color: 0x14b8a6, transparent: true, opacity: 0.8, roughness: 0.1 })); pool.position.y = 0.1;
+            const ph = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), steelMat); ph.position.set(0.6, 0.33, -0.6); ph.castShadow = true;
+            group.add(pool, ph);
+          }
+          else if (b.type === 'sulfur_vent' || b.type === 'gas_well') {
+            const isGas = b.type === 'gas_well';
+            const dome = new THREE.Mesh(new THREE.SphereGeometry(0.6, 16, 16, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshStandardMaterial({ color: isGas ? 0x94a3b8 : 0xfacc15, metalness: 0.4 })); dome.position.y = 0.08; dome.castShadow = true;
+            const pipe = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 1.2), steelMat); pipe.position.set(0, 0.6, 0);
+            const val = new THREE.Mesh(new THREE.TorusGeometry(0.15, 0.04, 8, 12), new THREE.MeshStandardMaterial({ color: 0xef4444 })); val.position.set(0.15, 0.8, 0); anim.wheel = val;
+            group.add(dome, pipe, val);
+          }
           else if (b.type.includes('mine') || b.type.includes('quarry') || b.type.includes('extractor') || b.type.includes('vent') || b.type.includes('well')) {
             const acc = DEPOSIT_PALETTE[def.deposit]?.css || '#c2593f';
             const s = new THREE.Mesh(new THREE.BoxGeometry(1.45, 0.65, 1.15), new THREE.MeshStandardMaterial({ map: TextureBank.getWallTexture('#334155', acc, true), roughness: 0.6 })); s.position.set(0, 0.4, 0.25); s.castShadow = true;
-            const dk = new THREE.Mesh(new THREE.ConeGeometry(0.45, 1.35, 4), steelMat); dk.position.set(0, 0.95, -0.35); dk.castShadow = true;
-            const wh = new THREE.Mesh(new THREE.TorusGeometry(0.22, 0.04, 6, 14), new THREE.MeshStandardMaterial({ color: 0xf59e0b, metalness: 0.6 })); wh.position.set(0, 1.35, -0.35); anim.wheel = wh; group.add(s, dk, wh);
+            const dk = new THREE.Mesh(new THREE.BoxGeometry(0.6, 1.35, 0.6), steelMat); dk.position.set(0, 0.75, -0.35); dk.castShadow = true;
+            const wh = new THREE.Mesh(new THREE.TorusGeometry(0.22, 0.04, 6, 14), new THREE.MeshStandardMaterial({ color: 0xf59e0b, metalness: 0.6 })); wh.position.set(0, 1.45, -0.35); anim.wheel = wh; group.add(s, dk, wh);
           }
           else if (b.type === 'oil_derrick') { const bs = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.16, 0.8), hazMat); bs.position.y = 0.16; const pt = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.95, 0.18), steelMat); pt.position.y = 0.62; const bm = new THREE.Group(); bm.position.set(0, 1.1, 0); const a = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.14, 1.35), new THREE.MeshStandardMaterial({ color: 0xf59e0b, metalness: 0.5, roughness: 0.4 })); const hd = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.34, 0.26), steelMat); hd.position.z = -0.62; bm.add(a, hd); anim.pumpBeam = bm; group.add(bs, pt, bm); }
-          else if (['smelter', 'steel_foundry', 'aluminum_smelter', 'wafer_fab', 'refinery', 'chemical_plant', 'cement_kiln', 'glass_furnace', 'ammonia_plant', 'magnet_sintering'].includes(b.type)) {
-            const stpMap = { smelter: '#f97316', steel_foundry: '#ef4444', aluminum_smelter: '#38bdf8', wafer_fab: '#60a5fa', refinery: '#f59e0b', chemical_plant: '#a3e635', cement_kiln: '#9ca3af', glass_furnace: '#bae6fd', ammonia_plant: '#f472b6', magnet_sintering: '#ec4899' };
+          else if (['worker_cottage', 'worker_housing', 'apartment_tower', 'eco_villas', 'canteen_plaza'].includes(b.type)) {
+            const isTall = b.type === 'apartment_tower'; const mH = isTall ? 2.2 : (b.type === 'worker_cottage' ? 0.6 : 0.8);
+            const wMat = new THREE.MeshStandardMaterial({ map: TextureBank.getResidentialWallTexture('#f8fafc', '#94a3b8'), roughness: 0.9 });
+            const h = new THREE.Mesh(new THREE.BoxGeometry(bw * 0.85, mH, bd * 0.85), wMat); h.position.y = 0.08 + mH * 0.5; h.castShadow = true; group.add(h);
+            if (!isTall && b.type !== 'canteen_plaza') { const r = createGableRoofMesh(bw * 0.88, bd * 0.88, 0.35, new THREE.MeshStandardMaterial({ map: TextureBank.getRoofShingleTexture('#1e293b') })); r.position.y = 0.08 + mH; r.castShadow = true; group.add(r); }
+          }
+          else if (b.type === 'recreation_dome') {
+            const dome = new THREE.Mesh(new THREE.SphereGeometry(bw * 0.45, 24, 16, 0, Math.PI * 2, 0, Math.PI/2), new THREE.MeshStandardMaterial({ color: 0xbae6fd, transparent: true, opacity: 0.5, metalness: 0.8, roughness: 0.1 })); dome.position.y = 0.08; group.add(dome);
+          }
+          else if (b.type === 'fluid_tank') {
+            const tk = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 0.75, 20), new THREE.MeshStandardMaterial({ color: 0xf1f5f9, metalness: 0.4 })); tk.position.y = 0.45; tk.castShadow = true;
+            const cap = new THREE.Mesh(new THREE.SphereGeometry(0.42, 20, 10, 0, Math.PI*2, 0, Math.PI/2), tk.material); cap.position.y = 0.82; group.add(tk, cap);
+          }
+          else if (b.type === 'warehouse') {
+            const box = new THREE.Mesh(new THREE.BoxGeometry(bw * 0.9, 0.7, bd * 0.9), new THREE.MeshStandardMaterial({ map: TextureBank.getWallTexture('#1e293b', '#94a3b8', false) })); box.position.y = 0.43; box.castShadow = true; group.add(box);
+            for(let i=0; i<3; i++) { const saw = createGableRoofMesh(bw * 0.9, bd * 0.3, 0.2, steelMat); saw.position.set(0, 0.78, -bd*0.3 + i*bd*0.3); saw.castShadow = true; group.add(saw); }
+          }
+          else if (b.type === 'truck_depot') {
+            const main = new THREE.Mesh(new THREE.BoxGeometry(bw * 0.4, 0.6, bd * 0.8), new THREE.MeshStandardMaterial({ map: TextureBank.getWallTexture('#334155', '#38bdf8', true) })); main.position.set(-bw*0.25, 0.38, 0); main.castShadow = true;
+            const can = new THREE.Mesh(new THREE.BoxGeometry(bw * 0.5, 0.05, bd * 0.8), steelMat); can.position.set(bw*0.2, 0.6, 0); can.castShadow = true;
+            const p1 = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.6), steelMat); p1.position.set(bw*0.4, 0.3, -bd*0.3);
+            const p2 = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.6), steelMat); p2.position.set(bw*0.4, 0.3, bd*0.3);
+            group.add(main, can, p1, p2);
+          }
+          else if (b.type === 'solar_array') {
+            const pMat = new THREE.MeshStandardMaterial({ color: 0x0284c7, metalness: 0.8, roughness: 0.2 });
+            for(let i=0; i<3; i++) { const p = new THREE.Mesh(new THREE.BoxGeometry(bw * 0.8, 0.04, bd * 0.28), pMat); p.rotation.x = -Math.PI / 6; p.position.set(0, 0.35, -bd*0.3 + i*bd*0.3); p.castShadow = true; const s = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.3, 0.04), steelMat); s.position.set(0, 0.15, -bd*0.3 + i*bd*0.3); group.add(p, s); }
+          }
+          else if (b.type === 'substation') {
+            const m1 = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.6, 0.7), steelMat); m1.position.set(-0.35, 0.38, 0); m1.castShadow = true;
+            const m2 = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.6, 0.7), steelMat); m2.position.set(0.35, 0.38, 0); m2.castShadow = true;
+            const w = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 1.2), new THREE.MeshStandardMaterial({ color: 0x94a3b8 })); w.position.set(0, 0.75, 0); w.rotation.z = Math.PI/2;
+            group.add(m1, m2, w);
+          }
+          else if (b.type === 'nuclear_plant' || b.type === 'coal_plant') {
+            const h = new THREE.Mesh(new THREE.BoxGeometry(bw * 0.45, 0.8, bd * 0.6), new THREE.MeshStandardMaterial({ map: TextureBank.getWallTexture('#334155', b.type==='nuclear_plant'?'#84cc16':'#f59e0b', true) })); h.position.set(-bw*0.2, 0.48, 0); h.castShadow = true; group.add(h);
+            const tw1 = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.45, 1.8, 16), concMat); tw1.position.set(bw*0.25, 0.9, -bd*0.2); tw1.castShadow = true; group.add(tw1);
+            if (b.type === 'nuclear_plant') { const tw2 = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.45, 1.8, 16), concMat); tw2.position.set(bw*0.25, 0.9, bd*0.2); tw2.castShadow = true; group.add(tw2); }
+          }
+          else if (b.type === 'fusion_reactor' || b.type === 'antimatter_reactor') {
+            const isAnti = b.type === 'antimatter_reactor';
+            const tor = new THREE.Mesh(new THREE.TorusGeometry(0.9, 0.28, 16, 48), new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.8, roughness: 0.2 })); tor.rotation.x = Math.PI / 2; tor.position.y = 0.8; tor.castShadow = true;
+            const core = new THREE.Mesh(isAnti ? new THREE.IcosahedronGeometry(0.4) : new THREE.SphereGeometry(0.4, 16, 16), new THREE.MeshStandardMaterial({ color: isAnti ? 0xf43f5e : 0x38bdf8, emissive: isAnti ? 0xe11d48 : 0x0ea5e9, emissiveIntensity: 1.5 })); core.position.y = 0.8; anim.core = core; group.add(tor, core);
+          }
+          else if (b.type === 'cement_kiln') {
+            const base1 = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.4, 0.6), concMat); base1.position.set(-0.6, 0.28, 0);
+            const base2 = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.4, 0.6), concMat); base2.position.set(0.6, 0.28, 0);
+            const kiln = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.35, 1.6, 16), steelMat); kiln.rotation.z = Math.PI / 2; kiln.position.y = 0.7; kiln.castShadow = true; anim.kiln = kiln;
+            group.add(base1, base2, kiln);
+          }
+          else if (['refinery', 'chemical_plant', 'ammonia_plant'].includes(b.type)) {
+            const stpMap = { refinery: '#f59e0b', chemical_plant: '#a3e635', ammonia_plant: '#f472b6' }; const st = stpMap[b.type];
+            const pMat = new THREE.MeshStandardMaterial({ color: 0xcbd5e1, metalness: 0.6, roughness: 0.3 });
+            const box = new THREE.Mesh(new THREE.BoxGeometry(bw * 0.8, 0.45, bd * 0.8), new THREE.MeshStandardMaterial({ map: TextureBank.getWallTexture('#334155', st, false) })); box.position.y = 0.3; box.castShadow = true; group.add(box);
+            const c1 = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 1.4), pMat); c1.position.set(-bw*0.2, 1.1, -bd*0.2); c1.castShadow = true;
+            const c2 = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.14, 1.7), pMat); c2.position.set(bw*0.2, 1.25, -bd*0.2); c2.castShadow = true;
+            const sph = new THREE.Mesh(new THREE.SphereGeometry(0.35, 16, 16), new THREE.MeshStandardMaterial({ color: st, metalness: 0.4 })); sph.position.set(0, 0.8, bd*0.25); sph.castShadow = true;
+            group.add(c1, c2, sph);
+          }
+          else if (['smelter', 'steel_foundry', 'aluminum_smelter', 'wafer_fab', 'glass_furnace', 'magnet_sintering'].includes(b.type)) {
+            const stpMap = { smelter: '#f97316', steel_foundry: '#ef4444', aluminum_smelter: '#38bdf8', wafer_fab: '#60a5fa', glass_furnace: '#bae6fd', magnet_sintering: '#ec4899' };
             const st = stpMap[b.type] || '#f59e0b', mH = bw >= 3 ? 0.95 : 0.78;
             const h = new THREE.Mesh(new THREE.BoxGeometry(bw * 0.86, mH, bd * 0.84), new THREE.MeshStandardMaterial({ map: TextureBank.getWallTexture('#334155', st, true), bumpMap: TextureBank.getIndustrialBumpTexture(), bumpScale: 0.02 })); h.position.y = 0.08 + mH * 0.5; h.castShadow = true;
             const r = createGableRoofMesh(bw * 0.88, bd * 0.86, 0.26, steelMat); r.position.y = 0.08 + mH; group.add(h, r);
@@ -918,13 +1067,75 @@
             if (bw >= 3) { for (let t = 0; t < 2; t++) { const tw = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.2, 1.35, 12), steelMat); tw.position.set(-bw * 0.26 + t * (bw * 0.52), 0.75, bd * 0.22); tw.castShadow = true; group.add(tw); } }
             else { const ch = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.16, 1.3, 10), steelMat); ch.position.set(bw * 0.28, 0.85, bd * 0.22); ch.castShadow = true; group.add(ch); }
           }
-          else if (['electronics_fab', 'turbine_works', 'assembler', 'ev_mech_plant', 'aerospace_works', 'research_center', 'advanced_research', 'superconductor_lab'].includes(b.type)) {
-            const acc = b.type === 'aerospace_works' ? '#fb7185' : (b.type.includes('research') || b.type.includes('super')) ? '#a855f7' : '#38bdf8';
+          else if (b.type === 'aerospace_works' || b.type === 'dyson_assembler') {
+            const hMat = new THREE.MeshStandardMaterial({ map: TextureBank.getWallTexture('#0f172a', b.type==='aerospace_works'?'#fb7185':'#f59e0b', false), metalness: 0.4 });
+            const hangar = new THREE.Mesh(new THREE.CylinderGeometry(bw * 0.45, bw * 0.45, bd * 0.88, 32, 1, false, 0, Math.PI), hMat);
+            hangar.rotation.z = Math.PI / 2; hangar.rotation.y = Math.PI / 2; hangar.position.y = 0.08; hangar.castShadow = true; group.add(hangar);
+          }
+          else if (b.type === 'cargo_airport') {
+            const bMat = new THREE.MeshStandardMaterial({ color: 0x475569, metalness: 0.3 });
+            const rw = new THREE.Mesh(new THREE.BoxGeometry(bw * 0.9, 0.02, bd * 0.4), new THREE.MeshStandardMaterial({ color: 0x1e293b })); rw.position.set(0, 0.09, -bd * 0.2); group.add(rw);
+            const term = new THREE.Mesh(new THREE.BoxGeometry(bw * 0.6, 0.6, bd * 0.4), bMat); term.position.set(-bw * 0.1, 0.38, bd * 0.25); term.castShadow = true;
+            const twr = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 1.8), new THREE.MeshStandardMaterial({ color: 0x94a3b8 })); twr.position.set(bw * 0.3, 0.98, bd * 0.25); twr.castShadow = true;
+            const radar = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.05, 0.1), new THREE.MeshStandardMaterial({ color: 0xef4444 })); radar.position.set(bw * 0.3, 1.9, bd * 0.25); anim.radar = radar;
+            group.add(term, twr, radar);
+          }
+          else if (b.type === 'export_terminal') {
+            const bMat = new THREE.MeshStandardMaterial({ color: 0x475569, metalness: 0.3 });
+            const mbox = new THREE.Mesh(new THREE.BoxGeometry(bw * 0.7, 0.8, bd * 0.7), bMat); mbox.position.y = 0.48; mbox.castShadow = true; group.add(mbox);
+            const craneG = new THREE.Group(); craneG.position.set(-bw * 0.35, 0.08, 0);
+            const leg1 = new THREE.Mesh(new THREE.BoxGeometry(0.1, 1.2, 0.1), steelMat); leg1.position.set(0, 0.6, -0.4);
+            const leg2 = new THREE.Mesh(new THREE.BoxGeometry(0.1, 1.2, 0.1), steelMat); leg2.position.set(0, 0.6, 0.4);
+            const bridge = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.1, 1.2), new THREE.MeshStandardMaterial({ color: 0xf59e0b })); bridge.position.set(0, 1.2, 0);
+            const hoist = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.4, 0.15), new THREE.MeshStandardMaterial({ color: 0x222222 })); hoist.position.set(0, 1.0, 0); anim.crane = hoist;
+            craneG.add(leg1, leg2, bridge, hoist); group.add(craneG);
+          }
+          else if (b.type === 'assembler' || b.type === 'ev_mech_plant') {
+            const mH = 0.6; const hl = new THREE.Mesh(new THREE.BoxGeometry(bw * 0.88, mH, bd * 0.86), new THREE.MeshStandardMaterial({ map: TextureBank.getWallTexture('#1e293b', '#fbbf24', true), bumpMap: TextureBank.getIndustrialBumpTexture(), bumpScale: 0.02 })); hl.position.y = 0.08 + mH * 0.5; hl.castShadow = true; group.add(hl);
+            anim.arms = [];
+            for (let i = 0; i < 2; i++) {
+                const armBase = new THREE.Group(); armBase.position.set(i === 0 ? -0.5 : 0.5, 0.08 + mH, 0);
+                const a1 = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.4), new THREE.MeshStandardMaterial({ color: 0xf59e0b })); a1.position.y = 0.2;
+                const a2 = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.5, 0.06), steelMat); a2.position.set(0, 0.45, 0.1); a2.rotation.x = Math.PI / 4;
+                armBase.add(a1, a2); anim.arms.push(armBase); group.add(armBase);
+            }
+          }
+          else if (b.type === 'quantum_forge' || b.type === 'advanced_research') {
+            const isForge = b.type === 'quantum_forge';
+            const hl = new THREE.Mesh(new THREE.BoxGeometry(bw * 0.88, 0.78, bd * 0.86), new THREE.MeshStandardMaterial({ map: TextureBank.getWallTexture('#1e293b', '#a855f7', true) })); hl.position.y = 0.47; hl.castShadow = true; group.add(hl);
+            anim.quantum = [];
+            const qMat = new THREE.MeshStandardMaterial({ color: 0xc084fc, emissive: 0x9333ea, emissiveIntensity: 0.9, transparent: true, opacity: 0.8 });
+            for (let i = 0; i < (isForge ? 3 : 1); i++) {
+                const q = new THREE.Mesh(isForge ? new THREE.TorusGeometry(0.4 + i*0.2, 0.02, 8, 16) : new THREE.OctahedronGeometry(0.45, 0), qMat);
+                q.position.set(0, 1.6, 0); anim.quantum.push(q); group.add(q);
+            }
+          }
+          else if (b.type === 'superconductor_lab') {
+            const hl = new THREE.Mesh(new THREE.BoxGeometry(bw * 0.88, 0.8, bd * 0.86), new THREE.MeshStandardMaterial({ map: TextureBank.getWallTexture('#1e293b', '#38bdf8', true) })); hl.position.y = 0.48; group.add(hl);
+            for(let i=0; i<4; i++) {
+                const cryo = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.6, 6), new THREE.MeshStandardMaterial({ color: 0xe0f2fe, emissive: 0x0ea5e9, emissiveIntensity: 0.4, metalness: 0.8 }));
+                cryo.position.set((i%2===0?-0.4:0.4), 1.1, (i<2?-0.4:0.4)); group.add(cryo);
+            }
+          }
+          else if (b.type === 'graphene_loom' || b.type === 'nanotube_fab') {
+            const hl = new THREE.Mesh(new THREE.BoxGeometry(bw * 0.88, 0.6, bd * 0.86), new THREE.MeshStandardMaterial({ map: TextureBank.getWallTexture('#0f172a', '#475569', true) })); hl.position.y = 0.38; group.add(hl);
+            const lattice = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.6, 1.2, 6, 4, true), new THREE.MeshStandardMaterial({ color: 0x334155, wireframe: true })); lattice.rotation.z = Math.PI / 2; lattice.position.y = 1.0; group.add(lattice);
+          }
+          else if (['electronics_fab', 'turbine_works', 'research_center'].includes(b.type)) {
+            const acc = (b.type.includes('research')) ? '#a855f7' : '#38bdf8';
             const mH = bw >= 3 ? 1.05 : 0.78; const hl = new THREE.Mesh(new THREE.BoxGeometry(bw * 0.88, mH, bd * 0.86), new THREE.MeshStandardMaterial({ map: TextureBank.getWallTexture('#1e293b', acc, true), bumpMap: TextureBank.getIndustrialBumpTexture(), bumpScale: 0.02 })); hl.position.y = 0.08 + mH * 0.5; hl.castShadow = true; group.add(hl);
-            if (b.type === 'advanced_research') { const cr = new THREE.Mesh(new THREE.OctahedronGeometry(0.45, 0), new THREE.MeshStandardMaterial({ color: 0xc084fc, emissive: 0x9333ea, emissiveIntensity: 0.9 })); cr.position.y = 1.45; anim.core = cr; group.add(cr); }
+          }
+          else if (b.type === 'wind_turbine') {
+            const wMat = new THREE.MeshStandardMaterial({ color: 0xf1f5f9, roughness: 0.4 });
+            const tower = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.15, 2.0, 8), wMat); tower.position.y = 1.0; tower.castShadow = true;
+            const nacelle = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.3, 0.5), wMat); nacelle.position.set(0, 2.0, -0.05); nacelle.castShadow = true;
+            const rotor = new THREE.Group(); rotor.position.set(0, 2.0, 0.25);
+            const hub = new THREE.Mesh(new THREE.SphereGeometry(0.12, 8, 8), wMat); rotor.add(hub);
+            for(let i=0; i<3; i++) { const blade = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.85, 0.02), wMat); blade.position.y = 0.45; const bPivot = new THREE.Group(); bPivot.rotation.z = (Math.PI * 2 / 3) * i; bPivot.add(blade); rotor.add(bPivot); blade.castShadow = true; }
+            anim.wheel = rotor; group.add(tower, nacelle, rotor);
           }
           else {
-            const tk = new THREE.Mesh(new THREE.CylinderGeometry(bw * 0.36, bw * 0.38, 0.88, 14), new THREE.MeshStandardMaterial({ map: TextureBank.getWallTexture('#334155', '#10b981', false), metalness: 0.5, roughness: 0.3 })); tk.position.y = 0.52; tk.castShadow = true; group.add(tk);
+            const h = new THREE.Mesh(new THREE.BoxGeometry(bw * 0.8, 0.8, bd * 0.8), new THREE.MeshStandardMaterial({ map: TextureBank.getWallTexture('#334155', '#10b981', false) })); h.position.y = 0.48; h.castShadow = true; group.add(h);
           }
           return { group, anim };
         }
@@ -948,6 +1159,11 @@
             const run = (BUILDINGS[b.type]?.power > 0 ? (b.powerRatio || 0) > 0.35 : true) && ((BUILDINGS[b.type]?.workers || 0) > 0 ? (b.staffRatio || 0) > 0.1 : true) && (s.simSpeed || 0) > 0;
             if (e.anim.wheel && run) e.anim.wheel.rotation.z += 0.04;
             if (e.anim.pumpBeam && run) e.anim.pumpBeam.rotation.x = Math.sin(time * 2.6 + b.id) * 0.28;
+            if (e.anim.kiln && run) e.anim.kiln.rotation.z += 0.05;
+            if (e.anim.radar && run) e.anim.radar.rotation.y += 0.08;
+            if (e.anim.crane && run) e.anim.crane.position.z = Math.sin(time * 1.5 + b.id) * 0.4;
+            if (e.anim.arms && run) e.anim.arms.forEach((arm, i) => { arm.rotation.y = Math.sin(time * 3 + b.id + i) * 1.5; arm.children[1].rotation.x = Math.sin(time * 4 + b.id + i) * 0.5 - 0.5; });
+            if (e.anim.quantum && run) e.anim.quantum.forEach((q, i) => { q.rotation.x += 0.02 * (i + 1); q.rotation.y += 0.03 * (i + 1); });
             if (e.anim.core) { if (e.anim.core.geometry.type === 'OctahedronGeometry') e.anim.core.rotation.y = time * 1.4; if (e.anim.core.material?.emissiveIntensity !== undefined) e.anim.core.material.emissiveIntensity = run ? 0.75 + Math.sin(time * 4 + b.id) * 0.25 : 0.1; }
           }
           for (const [id, e] of buildingMeshes.entries()) { if (!activeIds.has(id)) { buildingsGroup.remove(e.group); buildingMeshes.delete(id); } }
@@ -988,15 +1204,29 @@
         function setWirePreview(bS, wxE, wzE) { if (!wirePreviewLine) return; if (!bS) { wirePreviewLine.visible = false; return; } const c = getBuildingCenter(bS), wp = gridToWorld(c.x, c.z), pA = wirePreviewLine.geometry.attributes.position; pA.setXYZ(0, wp.x, 1.0, wp.z); pA.setXYZ(1, wxE, 0.6, wzE); pA.needsUpdate = true; wirePreviewLine.visible = true; }
         function screenToWorld(cx, cy) { if (!camera) return null; const rc = canvas.getBoundingClientRect(), r = new THREE.Raycaster(); r.setFromCamera(new THREE.Vector2(((cx - rc.left) / rc.width) * 2 - 1, -((cy - rc.top) / rc.height) * 2 + 1), camera); const t = new THREE.Vector3(); return r.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), t) ? t : null; }
         function handleResize() { if (!renderer || !camera) return; camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); }
-        function render(dt) { if (!renderer || !scene || !camera) return; if (dt > 0 && dt < 0.25) fpsSmooth += ((1 / dt) - fpsSmooth) * 0.12; if (currentPreset === 'auto') { if (fpsSmooth < 46 && dynamicScale > 0.75) { dynamicScale = Math.max(0.75, dynamicScale - 0.05); renderer.setPixelRatio(dynamicScale); } else if (fpsSmooth > 57 && dynamicScale < 1.2) { dynamicScale = Math.min(1.2, dynamicScale + 0.02); renderer.setPixelRatio(dynamicScale); } } renderer.render(scene, camera); }
+        function render(dt) { 
+          if (!renderer || !scene || !camera) return; 
+          if (dt > 0 && dt < 0.25) fpsSmooth += ((1 / dt) - fpsSmooth) * 0.12; 
+          if (currentPreset === 'auto') { 
+            if (fpsSmooth < 46 && dynamicScale > 0.75) { dynamicScale = Math.max(0.75, dynamicScale - 0.05); renderer.setPixelRatio(dynamicScale); } 
+            else if (fpsSmooth > 57 && dynamicScale < 1.2) { dynamicScale = Math.min(1.2, dynamicScale + 0.02); renderer.setPixelRatio(dynamicScale); } 
+          } 
+          if (currentPreset === 'insane' && cubeCamera) {
+            cubeCamera.position.set(camState.target.x, 8, camState.target.z);
+            if (waterMesh) waterMesh.visible = false;
+            cubeCamera.update(renderer, scene);
+            if (waterMesh) waterMesh.visible = true;
+          }
+          renderer.render(scene, camera); 
+        }
 
         return { init, applyPreset, rebuildStaticWorld, syncSceneWithState, setHoverTile, setWirePreview, screenToWorld, worldToGrid, handleResize, render, panCamera: (dx, dz) => { camState.target.x = Math.max(-56, Math.min(56, camState.target.x + (dx * Math.cos(camState.yaw) + dz * Math.sin(camState.yaw)))); camState.target.z = Math.max(-56, Math.min(56, camState.target.z + (-dx * Math.sin(camState.yaw) + dz * Math.cos(camState.yaw)))); updateCameraTransform(); }, focusWorld: (wx, wz) => { camState.target.x = Math.max(-56, Math.min(56, wx)); camState.target.z = Math.max(-56, Math.min(56, wz)); updateCameraTransform(); }, rotateCamera: (dY) => { camState.yaw += dY; updateCameraTransform(); }, zoomCamera: (dD) => { camState.distance = Math.max(8, Math.min(64, camState.distance + dD)); updateCameraTransform(); }, getSelectedBuildingId: () => selectedBuildingId, setSelectedBuilding: id => { selectedBuildingId = id; }, getTrackpadMode: () => trackpadMode, toggleTrackpadMode: () => (trackpadMode = trackpadMode === 'zoom' ? 'pan' : 'zoom'), toggleGrid: () => { showGrid = !showGrid; if (gridHelper) gridHelper.visible = showGrid; return showGrid; }, getStats: () => ({ fps: Math.round(fpsSmooth), scale: dynamicScale, calls: renderer?.info?.render?.calls || 0 }) };
       })();
 
       const Input = (() => {
         let selTool = null, bDir = 0, wStart = null, isD = false, dMode = null, lx = 0, ly = 0, dMoved = false, lPt = '', kDown = new Set();
-        function setTool(t) { selTool = t; wStart = null; Graphics.setWirePreview(null); Graphics.setHoverTile(null, null, false, bDir, null); const bn = document.getElementById('toolHelperText'), cx = document.getElementById('btnCancelTool'); if (!t) { if (bn) bn.textContent = 'Select a structure below (Green = IN • Orange = OUT • Arrow = Facing)'; if (cx) cx.classList.add('hidden'); } else { const df = BUILDINGS[t]; if (bn) bn.textContent = t === 'power_wire' ? 'Click first powered node, then click second node within 9 tiles' : t === 'bulldoze' ? 'Click or drag over structures to demolish (50% refund)' : `Placing ${df?.name} ($${df?.cost}) — Press [T] to Rotate`; if (cx) cx.classList.remove('hidden'); } UI.renderBuildDock(); }
-        function rotateDir() { const sId = Graphics.getSelectedBuildingId(); if (!selTool && sId && state) { const b = getBuildingById(state, sId); if (b) { b.dir = ((b.dir || 0) + 1) % 4; SoundFX.play('wire'); UI.updateInspector(b); return; } } bDir = (bDir + 1) % 4; const bt = document.getElementById('btnRotateTool'); if (bt) bt.textContent = `Dir: ${DIRS[bDir].name} [T]`; SoundFX.play('wire'); }
+        function setTool(t) { selTool = t; wStart = null; Graphics.setWirePreview(null); Graphics.setHoverTile(null, null, false, bDir, null); const bn = document.getElementById('toolHelperText'), cx = document.getElementById('btnCancelTool'); if (!t) { if (bn) bn.textContent = 'Select a structure below (Green = IN • Orange = OUT • Arrow = Facing)'; if (cx) cx.classList.add('hidden'); } else { const df = BUILDINGS[t]; if (bn) bn.textContent = t === 'power_wire' ? 'Click first powered node, then click second node within 9 tiles' : t === 'bulldoze' ? 'Click or drag over structures to demolish (50% refund)' : `Placing ${df?.name} ($${df?.cost}) — Press [R] to Rotate`; if (cx) cx.classList.remove('hidden'); } UI.renderBuildDock(); }
+        function rotateDir() { const sId = Graphics.getSelectedBuildingId(); if (!selTool && sId && state) { const b = getBuildingById(state, sId); if (b) { b.dir = ((b.dir || 0) + 1) % 4; SoundFX.play('wire'); UI.updateInspector(b); return; } } bDir = (bDir + 1) % 4; const bt = document.getElementById('btnRotateTool'); if (bt) bt.textContent = `Dir: ${DIRS[bDir].name} [R]`; SoundFX.play('wire'); }
         function applyToolAtGrid(gx, gz) { if (!state || !selTool) return; if (selTool === 'bulldoze') { const tg = getBuildingAt(state, gx, gz); if (tg && removeBuildingInState(state, tg.id)) { SoundFX.play('delete'); if (Graphics.getSelectedBuildingId() === tg.id) { Graphics.setSelectedBuilding(null); UI.closeInspector(); } } return; } if (selTool === 'power_wire') { const tg = getBuildingAt(state, gx, gz); if (!tg) return; if (!wStart) { wStart = tg; SoundFX.play('wire'); UI.toast(`Selected ${BUILDINGS[tg.type]?.name}. Click target.`, 'sky'); } else { const d = Math.hypot(getBuildingCenter(wStart).x - getBuildingCenter(tg).x, getBuildingCenter(wStart).z - getBuildingCenter(tg).z); if (d > 9.5) UI.toast('Too far! Max 9 tiles.', 'rose'); else if (state.money < 15) UI.toast('Not enough funds.', 'rose'); else if (addWireInState(state, wStart.id, tg.id)) { state.money -= 15; SoundFX.play('wire'); UI.toast('Line connected!', 'emerald'); } wStart = null; Graphics.setWirePreview(null); } return; } const df = BUILDINGS[selTool]; if (!df) return; if (state.money < df.cost) { UI.toast(`Need $${df.cost.toLocaleString()}.`, 'rose'); return; } if (placeBuildingInState(state, selTool, gx, gz, bDir, false)) { SoundFX.play('build'); if (df.housingCap) UI.toast(`🏠 ${df.name} built! +${df.housingCap} beds.`, 'emerald'); } }
 
         function init() {
@@ -1005,7 +1235,7 @@
           c.addEventListener('pointermove', e => { const dx = e.clientX - lx, dy = e.clientY - ly; if (Math.hypot(dx, dy) > 4) dMoved = true; if (isD) { if (dMode === 'rotate') Graphics.rotateCamera(-dx * 0.007); else if (dMode === 'pan') Graphics.panCamera(-dx * 0.042, -dy * 0.042); else if (dMode === 'paint') { const wp = Graphics.screenToWorld(e.clientX, e.clientY); if (wp) { const g = Graphics.worldToGrid(wp.x, wp.z), k = `${g.x},${g.z}`; if (k !== lPt) { lPt = k; applyToolAtGrid(g.x, g.z); } } } } lx = e.clientX; ly = e.clientY; const wp = Graphics.screenToWorld(e.clientX, e.clientY); if (wp && state) { const g = Graphics.worldToGrid(wp.x, wp.z); if (selTool && selTool !== 'power_wire') { const val = selTool === 'bulldoze' ? (g.x >= 0 && g.z >= 0 && g.x < GRID_SIZE && g.z < GRID_SIZE && !!getBuildingAt(state, g.x, g.z)) : canPlaceFootprint(state, selTool, g.x, g.z, bDir); Graphics.setHoverTile(g.x, g.z, val, bDir, BUILDINGS[selTool]); } else Graphics.setHoverTile(null, null, false, bDir, null); if (selTool === 'power_wire' && wStart) Graphics.setWirePreview(wStart, wp.x, wp.z); } });
           c.addEventListener('pointerup', e => { try { c.releasePointerCapture(e.pointerId); } catch (_) {} if (!dMoved && state) { const wp = Graphics.screenToWorld(e.clientX, e.clientY); if (wp) { const g = Graphics.worldToGrid(wp.x, wp.z); if (selTool) { if (dMode !== 'paint') applyToolAtGrid(g.x, g.z); } else { const clk = getBuildingAt(state, g.x, g.z); if (clk) { Graphics.setSelectedBuilding(clk.id); UI.openInspector(clk); } else { const t = state.tiles[g.z]?.[g.x]; if (t?.deposit) UI.toast(`⛏ ${DEPOSIT_PALETTE[t.deposit]?.label || t.deposit} — Place matching Extractor here!`, 'sky'); Graphics.setSelectedBuilding(null); UI.closeInspector(); } } } } isD = false; dMode = null; });
           c.addEventListener('wheel', e => { e.preventDefault(); if (e.ctrlKey || Graphics.getTrackpadMode() === 'zoom') Graphics.zoomCamera(e.deltaY * 0.018); else Graphics.panCamera(e.deltaX * 0.03, e.deltaY * 0.03); }, { passive: false });
-          window.addEventListener('keydown', e => { if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return; const k = e.key.toLowerCase(); kDown.add(k); if (k === 't') rotateDir(); else if (k === 'r') UI.toggleResearchModal(); else if (k === 'p') setTool(selTool === 'power_wire' ? null : 'power_wire'); else if (k === 'x') setTool(selTool === 'bulldoze' ? null : 'bulldoze'); else if (k === 'escape') { setTool(null); Graphics.setSelectedBuilding(null); UI.closeInspector(); document.getElementById('researchModal')?.classList.add('hidden'); } else if (k === 'q') Graphics.rotateCamera(-0.15); else if (k === 'e') Graphics.rotateCamera(0.15); else if (k === '=' || k === '+') Graphics.zoomCamera(-2.5); else if (k === '-' || k === '_') Graphics.zoomCamera(2.5); });
+          window.addEventListener('keydown', e => { if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return; const k = e.key.toLowerCase(); kDown.add(k); if (k === 'r') rotateDir(); else if (k === 't') UI.toggleResearchModal(); else if (k === 'p') setTool(selTool === 'power_wire' ? null : 'power_wire'); else if (k === 'x') setTool(selTool === 'bulldoze' ? null : 'bulldoze'); else if (k === 'escape') { setTool(null); Graphics.setSelectedBuilding(null); UI.closeInspector(); document.getElementById('researchModal')?.classList.add('hidden'); } else if (k === 'q') Graphics.rotateCamera(-0.15); else if (k === 'e') Graphics.rotateCamera(0.15); else if (k === '=' || k === '+') Graphics.zoomCamera(-2.5); else if (k === '-' || k === '_') Graphics.zoomCamera(2.5); });
           window.addEventListener('keyup', e => kDown.delete(e.key.toLowerCase()));
         }
         function updateKeyboardPan(dt) { if (kDown.size === 0) return; const sp = 22 * dt; let dx = 0, dz = 0; if (kDown.has('w') || kDown.has('arrowup')) dz -= sp; if (kDown.has('s') || kDown.has('arrowdown')) dz += sp; if (kDown.has('a') || kDown.has('arrowleft')) dx -= sp; if (kDown.has('d') || kDown.has('arrowright')) dx += sp; if (dx !== 0 || dz !== 0) Graphics.panCamera(dx, dz); }
@@ -1072,22 +1302,24 @@
           });
 
           const c = document.getElementById('researchTreeCanvas');
-          c.innerHTML = '<svg id="researchSvg" class="absolute inset-0 w-full h-full pointer-events-none" style="z-index:0; min-height:100%; min-width:100%;"></svg><div id="researchGrid" class="relative z-10 grid grid-cols-5 gap-8 items-center py-8"></div>';
+          c.innerHTML = '<svg id="researchSvg" class="absolute inset-0 w-full h-full pointer-events-none" style="z-index:0; min-height:100%; min-width:100%;"></svg><div id="researchGrid" class="relative z-10 grid grid-cols-6 gap-8 items-center py-8 px-4"></div>';
           const gd = document.getElementById('researchGrid');
 
-          for (let t = 1; t <= 5; t++) {
+          for (let t = 1; t <= 6; t++) {
             const cl = document.createElement('div'); cl.className = 'space-y-6 flex flex-col items-center';
             Object.values(RESEARCH).filter(tc => tc.tier === t && (aResB === 'all' || tc.branch === aResB)).forEach(tc => {
               const u = !!state.unlockedTech[tc.id], rm = (tc.req || []).every(r => !!state.unlockedTech[r]), aff = state.rp >= tc.rp && state.money >= tc.cost;
               const node = document.createElement('div');
               node.id = `tech-${tc.id}`;
-              const bgClass = u ? 'bg-[#4ade80] border-[#166534]' : rm ? 'bg-[#9ca3af] border-[#4b5563]' : 'bg-[#6b7280] border-[#374151] opacity-50';
-              node.className = `w-40 rounded-md border-2 p-2 shadow-md flex flex-col cursor-pointer transition-transform hover:scale-105 ${bgClass}`;
+              const bgClass = u ? 'bg-gradient-to-br from-emerald-900 to-green-950 border-emerald-400 shadow-[0_0_20px_rgba(52,211,153,0.3)]' : rm ? 'bg-gradient-to-br from-slate-700 to-slate-800 border-slate-400 shadow-[0_8px_16px_rgba(0,0,0,0.4)]' : 'bg-slate-900 border-slate-700 opacity-60';
+              node.className = `w-40 rounded-xl border-[3px] p-2.5 flex flex-col cursor-pointer transition-all duration-200 hover:-translate-y-1 hover:shadow-xl relative overflow-hidden ${bgClass}`;
               node.innerHTML = `
-                <div class="font-bold text-slate-900 text-[11px] truncate text-center">${tc.name}</div>
-                <div class="mt-2 flex justify-between items-end">
-                    <div class="text-[9px] text-slate-800 font-semibold leading-tight">${u ? 'Unlocked' : `$${tc.cost.toLocaleString()}`}</div>
-                    <div class="text-[10px] font-mono font-bold ${u ? 'text-slate-900' : 'text-cyan-900'}">${tc.rp} RP</div>
+                ${u ? '<div class="absolute inset-0 bg-emerald-400/10 pointer-events-none"></div>' : ''}
+                <div class="font-extrabold text-white text-[12px] truncate text-center drop-shadow-md z-10" title="${tc.name}">${tc.name}</div>
+                <div class="text-[9px] text-slate-300 mt-1.5 mb-1 leading-tight text-center z-10 whitespace-normal min-h-[2.5rem]">${tc.desc}</div>
+                <div class="mt-auto pt-1 flex justify-between items-end z-10">
+                    <div class="text-[10px] text-slate-300 font-bold leading-tight">${u ? '<span class="text-emerald-300">✔ Unlocked</span>' : `$${tc.cost.toLocaleString()}`}</div>
+                    <div class="text-[10px] font-mono font-bold ${u ? 'text-emerald-200' : 'text-sky-300'}">${tc.rp} RP</div>
                 </div>
               `;
               if (!u) {
@@ -1169,8 +1401,65 @@
           const sI = Graphics.getSelectedBuildingId(); if (sI) updateInspector(getBuildingById(state, sI));
           const tH = document.getElementById('topHud'); if (tH) document.documentElement.style.setProperty('--hud-top-offset', `${tH.offsetHeight + 14}px`);
         }
-        function saveGame() { if (!state) return; const p = JSON.stringify({ state, nextBuildingId }); sessionBackupSave = p; try { localStorage.setItem(SAVE_KEY, p); toast('💾 Empire saved!', 'emerald'); } catch (_) { toast('💾 Saved to memory!', 'emerald'); } }
-        function loadGame() { let r = sessionBackupSave; try { r = localStorage.getItem(SAVE_KEY) || r; } catch (_) {} if (!r) return false; try { const p = JSON.parse(r); if (p && p.state) { state = p.state; nextBuildingId = p.nextBuildingId || (state.buildings.length + 10); Graphics.rebuildStaticWorld(state); renderBuildDock(); updateHud(); document.getElementById('titleOverlay')?.classList.add('hidden'); toast('💾 Loaded!', 'emerald'); return true; } } catch (_) {} return false; }
+        
+        function openSaveLoadModal(mode) {
+          const m = document.getElementById('saveLoadModal'); if (!m) return;
+          document.getElementById('slModalTitle').textContent = mode === 'save' ? 'Save Game to Slot' : 'Load Game from Slot';
+          const c = document.getElementById('slSlotContainer'); c.innerHTML = '';
+          const saves = SaveSystem.getAllSaves();
+          saves.forEach(s => {
+            const row = document.createElement('div');
+            row.className = 'flex items-center justify-between p-3 rounded-xl bg-slate-900/80 border ' + (s.data ? 'border-slate-700' : 'border-slate-800/50');
+            const info = document.createElement('div');
+            info.innerHTML = `<div class="font-bold text-sm ${s.data ? 'text-white' : 'text-slate-500'}">Save Slot ${s.slot}</div>
+                              <div class="text-[11px] text-slate-400 mt-0.5">${s.data ? s.data.summary : 'Empty Slot'}</div>
+                              ${s.data ? `<div class="text-[9px] text-slate-500 mt-0.5">${new Date(s.data.timestamp).toLocaleString()}</div>` : ''}`;
+            const btns = document.createElement('div'); btns.className = 'flex items-center gap-2';
+            
+            if (mode === 'save') {
+              const bSave = document.createElement('button');
+              bSave.className = 'px-3 py-1.5 rounded-lg font-bold text-xs bg-emerald-500/20 hover:bg-emerald-500/35 border border-emerald-400/40 text-emerald-200 transition cursor-pointer';
+              bSave.textContent = 'Save Here';
+              bSave.onclick = () => {
+                if (SaveSystem.saveToSlot(s.slot, state, nextBuildingId)) { currentSaveSlot = s.slot; toast(`Saved to Slot ${s.slot}!`, 'emerald'); m.classList.add('hidden'); updateMainMenuButtons(); }
+                else toast('Save failed (storage full?)', 'rose');
+              };
+              btns.appendChild(bSave);
+            } else {
+              if (s.data) {
+                const bLoad = document.createElement('button');
+                bLoad.className = 'px-3 py-1.5 rounded-lg font-bold text-xs bg-sky-500/20 hover:bg-sky-500/35 border border-sky-400/40 text-sky-200 transition cursor-pointer';
+                bLoad.textContent = 'Load Game';
+                bLoad.onclick = () => { doLoadGame(s.data, s.slot); m.classList.add('hidden'); };
+                
+                const bDel = document.createElement('button');
+                bDel.className = 'px-2 py-1.5 rounded-lg font-bold text-xs bg-rose-500/20 hover:bg-rose-500/35 border border-rose-400/40 text-rose-300 transition cursor-pointer';
+                bDel.textContent = '🗑';
+                bDel.onclick = () => { if(confirm(`Delete Save Slot ${s.slot}?`)) { SaveSystem.deleteSlot(s.slot); openSaveLoadModal(mode); updateMainMenuButtons(); } };
+                btns.append(bLoad, bDel);
+              } else {
+                const bEmp = document.createElement('span'); bEmp.className = 'text-xs font-semibold text-slate-600 px-2'; bEmp.textContent = 'Empty'; btns.appendChild(bEmp);
+              }
+            }
+            row.append(info, btns); c.appendChild(row);
+          });
+          m.classList.remove('hidden');
+        }
+
+        function doLoadGame(payload, slot) {
+          if (!payload || !payload.state) return false;
+          state = payload.state; nextBuildingId = payload.nextBuildingId || (state.buildings.length + 10); currentSaveSlot = slot;
+          Graphics.rebuildStaticWorld(state); renderBuildDock(); updateHud(); 
+          document.getElementById('titleOverlay')?.classList.add('hidden'); 
+          toast(slot === 'AUTO' ? '💾 Autosave restored!' : `💾 Loaded from Slot ${slot}!`, 'emerald'); return true;
+        }
+
+        function updateMainMenuButtons() {
+          const mr = SaveSystem.getMostRecent();
+          document.getElementById('btnContinueSave').classList.toggle('hidden', !mr);
+        }
+
+        function showMainMenu() { updateMainMenuButtons(); document.getElementById('titleOverlay').classList.remove('hidden'); }
         function startNewGame(sb) { state = createFreshState(sb); Graphics.rebuildStaticWorld(state); Graphics.focusWorld(0, 12); aCat = 'workforce'; renderBuildDock(); updateHud(); document.getElementById('titleOverlay')?.classList.add('hidden'); toast(sb ? '⚛️ Sandbox Mode active!' : '🎯 Guided Campaign started!', 'sky'); }
 
         function init() {
@@ -1182,22 +1471,69 @@
           document.getElementById('btnCamRotL').onclick = () => Graphics.rotateCamera(-0.25); document.getElementById('btnCamRotR').onclick = () => Graphics.rotateCamera(0.25); document.getElementById('btnCamZoomIn').onclick = () => Graphics.zoomCamera(-3); document.getElementById('btnCamZoomOut').onclick = () => Graphics.zoomCamera(3);
           document.getElementById('btnCloseInspector').onclick = () => { Input.clearSelectedBuilding(); closeInspector(); }; document.getElementById('btnInspCycleRecipe').onclick = () => { const b = getBuildingById(state, Input.getSelectedBuildingId()), d = b ? BUILDINGS[b.type] : null; if (!b || !d?.recipes || d.recipes.length <= 1) return; b.activeRecipeIdx = ((b.activeRecipeIdx || 0) + 1) % d.recipes.length; b.progress = 0; SoundFX.play('wire'); updateInspector(b); }; document.getElementById('btnInspRotate').onclick = () => Input.rotateDir(); document.getElementById('btnInspRepair').onclick = () => { const b = getBuildingById(state, Input.getSelectedBuildingId()); if (!b || !state) return; if (b.condition >= 99) return toast('Already at 100%.', 'sky'); if (state.money < 40) return toast('Need $40.', 'rose'); state.money -= 40; b.condition = 100; SoundFX.play('build'); updateInspector(b); }; document.getElementById('btnInspDelete').onclick = () => { const i = Input.getSelectedBuildingId(); if (i && state && removeBuildingInState(state, i)) { SoundFX.play('delete'); Input.clearSelectedBuilding(); closeInspector(); toast('Demolished.', 'amber'); } };
           document.getElementById('btnRotateTool').onclick = () => Input.rotateDir(); document.getElementById('btnCancelTool').onclick = () => Input.setTool(null); document.getElementById('btnResearch').onclick = () => toggleResearchModal(); document.getElementById('btnDockResearch').onclick = () => toggleResearchModal(); document.getElementById('btnCloseResearch').onclick = () => toggleResearchModal();
-          document.getElementById('btnAudio').onclick = e => e.target.textContent = SoundFX.toggleMute() ? '🔇' : '🔊'; document.getElementById('btnSave').onclick = () => saveGame(); document.getElementById('btnMainMenu').onclick = () => { let hs = !!sessionBackupSave; try { if (localStorage.getItem(SAVE_KEY)) hs = true; } catch (_) {} document.getElementById('btnContinueSave').classList.toggle('hidden', !hs); document.getElementById('titleOverlay').classList.remove('hidden'); };
-          document.getElementById('btnStartGuided').onclick = () => startNewGame(false); document.getElementById('btnStartSandbox').onclick = () => startNewGame(true); document.getElementById('btnContinueSave').onclick = () => { if (!loadGame()) toast('No save found.', 'rose'); };
+          document.getElementById('btnAudio').onclick = e => e.target.textContent = SoundFX.toggleMute() ? '🔇' : '🔊'; 
+          document.getElementById('btnSave').onclick = () => openSaveLoadModal('save'); 
+          document.getElementById('btnCloseSaveLoad').onclick = () => document.getElementById('saveLoadModal').classList.add('hidden');
+          document.getElementById('btnMainMenu').onclick = () => showMainMenu();
+          document.getElementById('btnStartGuided').onclick = () => startNewGame(false); 
+          document.getElementById('btnStartSandbox').onclick = () => startNewGame(true); 
+          document.getElementById('btnMultiSaves').onclick = () => openSaveLoadModal('load');
+          document.getElementById('btnContinueSave').onclick = () => { const mr = SaveSystem.getMostRecent(); if (mr) doLoadGame(mr.data, mr.slot); else toast('No save found.', 'rose'); };
+          
+          window.addEventListener('wheel', e => { 
+            const hScroll = e.target.closest('.overflow-x-auto'); 
+            if (hScroll && e.deltaY !== 0) { 
+              e.preventDefault(); 
+              hScroll.scrollLeft += e.deltaY; 
+            } 
+          }, { passive: false });
         }
-        return { init, toast, setCategory, renderBuildDock, openInspector, updateInspector, closeInspector, toggleResearchModal, updateMiniMap, updateHud, startNewGame };
+        return { init, toast, setCategory, renderBuildDock, openInspector, updateInspector, closeInspector, toggleResearchModal, updateMiniMap, updateHud, startNewGame, showMainMenu };
       })();
 
-      let lastFrameTime = performance.now(), hudAccum = 0;
+      let lastFrameTime = performance.now(), hudAccum = 0, autoSaveAccum = 0;
+      let autoSaveErrorShown = false;
+      function saveActiveGameNow() {
+        const title = document.getElementById('titleOverlay');
+        // Do not save the temporary starter state while the main menu is open.
+        if (!state || !title || !title.classList.contains('hidden')) return false;
+        const saved = SaveSystem.saveAuto(state, nextBuildingId);
+        if (saved) {
+          autoSaveErrorShown = false;
+          const status = document.getElementById('autoSaveStatus');
+          if (status) status.textContent = `✓ Auto-saved ${new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
+          const saveButton = document.getElementById('btnSave');
+          if (saveButton) saveButton.title = 'Your game is being saved automatically';
+        } else if (!autoSaveErrorShown) {
+          autoSaveErrorShown = true;
+          UI.toast('Auto-save failed. Browser storage may be full.', 'rose');
+        }
+        return saved;
+      }
       function gameLoop(now) {
         requestAnimationFrame(gameLoop); const dt = Math.min(0.1, (now - lastFrameTime) / 1000); lastFrameTime = now;
         Input.updateKeyboardPan(dt);
         if (state) { stepSimulation(state, dt); Graphics.syncSceneWithState(state, now / 1000); }
         Graphics.render(dt);
         hudAccum += dt; if (hudAccum >= 0.2) { hudAccum = 0; UI.updateHud(); UI.updateMiniMap(); }
+        const title = document.getElementById('titleOverlay');
+        if (state && title && title.classList.contains('hidden')) {
+          autoSaveAccum += dt;
+          if (autoSaveAccum >= 20) { autoSaveAccum = 0; saveActiveGameNow(); }
+        } else {
+          autoSaveAccum = 0;
+        }
       }
+      document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') saveActiveGameNow(); });
+      window.addEventListener('pagehide', saveActiveGameNow);
+      window.addEventListener('beforeunload', saveActiveGameNow);
       window.addEventListener('resize', () => Graphics.handleResize());
-      window.onload = function () { Graphics.init(); Input.init(); UI.init(); UI.startNewGame(false); lastFrameTime = performance.now(); requestAnimationFrame(gameLoop); };
+      window.onload = function () { 
+        Graphics.init(); Input.init(); UI.init(); 
+        UI.startNewGame(false); 
+        UI.showMainMenu(); 
+        lastFrameTime = performance.now(); requestAnimationFrame(gameLoop); 
+      };
     })();
   </script>
 </body>
