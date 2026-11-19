@@ -2068,9 +2068,12 @@
     <div id="toastStack" style="top: var(--hud-top-offset);" class="fixed left-1/2 -translate-x-1/2 z-40 flex flex-col items-center gap-1.5 pointer-events-none"></div>
 
     <footer class="fixed bottom-2.5 left-2.5 right-2.5 z-20 flex flex-col items-center pointer-events-none">
-      <div id="toolHelperBanner" class="glass-pill rounded-full px-3.5 py-1 mb-2 text-[11px] font-medium text-slate-200 flex items-center gap-3 pointer-events-auto">
+      <div id="toolHelperBanner" class="glass-pill rounded-full px-3.5 py-1 mb-2 text-[11px] font-medium text-slate-200 flex flex-wrap justify-center items-center gap-2 pointer-events-auto">
         <span id="toolHelperText">Select a structure below (Green = IN • Orange = OUT • Arrow = Facing)</span>
         <button id="btnRotateTool" class="px-2 py-0.5 rounded-full bg-sky-500/25 border border-sky-400/40 text-sky-200 font-semibold hover:bg-sky-500/35 cursor-pointer">Dir: N [R]</button>
+        <button id="btnMassDeleteAll" class="hidden px-2 py-0.5 rounded-full bg-rose-500/15 border border-rose-400/30 text-rose-200 font-semibold hover:bg-rose-500/25 cursor-pointer">Select All</button>
+        <button id="btnMassDeleteClear" class="hidden px-2 py-0.5 rounded-full bg-slate-700/70 border border-slate-500/40 text-slate-200 font-semibold hover:bg-slate-600 cursor-pointer">Clear</button>
+        <button id="btnMassDeleteConfirm" class="hidden px-2 py-0.5 rounded-full bg-rose-500/30 border border-rose-400/50 text-rose-100 font-bold hover:bg-rose-500/45 cursor-pointer">🗑 Delete (0)</button>
         <button id="btnCancelTool" class="hidden px-2 py-0.5 rounded-full bg-rose-500/25 border border-rose-400/40 text-rose-200 font-semibold hover:bg-rose-500/35 cursor-pointer">Cancel [Esc]</button>
       </div>
       <div class="w-full max-w-6xl glass-panel rounded-2xl p-2 pointer-events-auto">
@@ -2291,7 +2294,8 @@
 
         // Tools
         power_wire: { id: 'power_wire', name: 'Power Line [P]', category: 'tools', icon: '🔌', cost: 15, power: 0, w: 1, d: 1, isTool: true },
-        bulldoze: { id: 'bulldoze', name: 'Demolish [X]', category: 'tools', icon: '🧨', cost: 0, power: 0, w: 1, d: 1, isTool: true }
+        bulldoze: { id: 'bulldoze', name: 'Demolish [X]', category: 'tools', icon: '🧨', cost: 0, power: 0, w: 1, d: 1, isTool: true },
+        mass_delete: { id: 'mass_delete', name: 'Mass Delete', category: 'tools', icon: '🗑️', cost: 0, power: 0, w: 1, d: 1, isTool: true }
       };
 
       const RESEARCH_BRANCHES = [
@@ -2442,8 +2446,12 @@
       function addWireInState(s, fromId, toId) { if (fromId === toId) return false; if (!getBuildingById(s, fromId) || !getBuildingById(s, toId)) return false; if (s.wires.some(w => (w.fromId === fromId && w.toId === toId) || (w.fromId === toId && w.toId === fromId))) return false; s.wires.push({ fromId, toId }); return true; }
       
       function placeBuildingInState(s, type, gx, gz, dir = 0, free = false) {
-        const def = BUILDINGS[type]; if (!def) return null; if (!free && !isBuildingUnlocked(s, def)) return null; if (!canPlaceFootprint(s, type, gx, gz, dir)) return null; if (!free && s.money < def.cost) return null;
-        if (!free) s.money -= def.cost;
+        const def = BUILDINGS[type]; if (!def) return null; if (!free && !isBuildingUnlocked(s, def)) return null; if (!canPlaceFootprint(s, type, gx, gz, dir)) return null; if (!free && (s.buildingInventory?.[type] || 0) <= 0 && s.money < def.cost) return null;
+        if (!free) {
+          s.buildingInventory ||= {};
+          if ((s.buildingInventory[type] || 0) > 0) s.buildingInventory[type]--;
+          else s.money -= def.cost;
+        }
         const { w, d } = getFootprintSize(def, dir); for (let dz = 0; dz < d; dz++) { for (let dx = 0; dx < w; dx++) { if (s.tiles[gz + dz]?.[gx + dx]) s.tiles[gz + dz][gx + dx].tree = false; } }
         const b = { id: nextBuildingId++, type, x: gx, z: gz, dir, condition: 100, progress: 0, activeRecipeIdx: 0, inv: {}, powerRatio: 1, assignedWorkers: 0, staffRatio: 1 };
         s.buildings.push(b);
@@ -2457,7 +2465,7 @@
         return b;
       }
 
-      function removeBuildingInState(s, id) { const idx = s.buildings.findIndex(b => b.id === id); if (idx === -1) return false; s.money += Math.floor((BUILDINGS[s.buildings[idx].type]?.cost || 0) * 0.5); s.buildings.splice(idx, 1); s.wires = s.wires.filter(w => w.fromId !== id && w.toId !== id); s.trucks = s.trucks.filter(t => t.depotId !== id); s.bots = s.bots.filter(b => b.bayId !== id); return true; }
+      function removeBuildingInState(s, id) { const idx = s.buildings.findIndex(b => b.id === id); if (idx === -1) return false; const removed = s.buildings[idx]; s.buildingInventory ||= {}; s.buildingInventory[removed.type] = (s.buildingInventory[removed.type] || 0) + 1; s.buildings.splice(idx, 1); s.wires = s.wires.filter(w => w.fromId !== id && w.toId !== id); s.trucks = s.trucks.filter(t => t.depotId !== id); s.bots = s.bots.filter(b => b.bayId !== id); return true; }
 
       function findRoadPath(s, startX, startZ, goalSet) {
         if (!goalSet || goalSet.size === 0) return null; const startK = `${startX},${startZ}`; if (goalSet.has(startK)) return [{ x: startX, z: startZ }];
@@ -2508,7 +2516,7 @@
           if ((Math.abs(Math.sin(x * 12.9898 + z * 78.233) * 43758.5453) % 1) < 0.22) t.tree = true;
         }}
 
-        return { sandbox, money: sandbox ? 250000 : 18000, rp: sandbox ? 9999 : 15, simSpeed: 1, simTime: 0, aqi: 12, happiness: 82, wagePolicy: 'standard', objectiveIndex: 0, unlockedTech: sandbox ? Object.fromEntries(Object.keys(RESEARCH).map(k => [k, true])) : {}, buildings: [], wires: [], cargoItems: [], trucks: [], bots: [], incomeEvents: [], payrollEvents: [], netIncomePerMin: 0, stats: { itemsProduced: 0, refinedProduced: 0, itemsExported: 0 }, lastGridStats: { totalGen: 0, totalDemand: 0, avgFactor: 1 }, lastHousingStats: { totalNeeded: 0, totalCap: 0, housed: 0, unfilledJobs: 0, spareWorkers: 0, roadBonusCap: 0 }, lastMoraleBreakdown: {}, tiles };
+        return { sandbox, money: sandbox ? 250000 : 18000, rp: sandbox ? 9999 : 15, buildingInventory: {}, simSpeed: 1, simTime: 0, aqi: 12, happiness: 82, wagePolicy: 'standard', objectiveIndex: 0, unlockedTech: sandbox ? Object.fromEntries(Object.keys(RESEARCH).map(k => [k, true])) : {}, buildings: [], wires: [], cargoItems: [], trucks: [], bots: [], incomeEvents: [], payrollEvents: [], netIncomePerMin: 0, stats: { itemsProduced: 0, refinedProduced: 0, itemsExported: 0 }, lastGridStats: { totalGen: 0, totalDemand: 0, avgFactor: 1 }, lastHousingStats: { totalNeeded: 0, totalCap: 0, housed: 0, unfilledJobs: 0, spareWorkers: 0, roadBonusCap: 0 }, lastMoraleBreakdown: {}, tiles };
       }
 
       function stepSimulation(s, dt) {
@@ -2708,12 +2716,36 @@
         let cubeRenderTarget, cubeCamera, staticEnv;
         let gridHelper, hoverGroup, hoverPadMesh, hoverArrowMesh, hoverInGroup, hoverOutGroup, rangeRingMesh, wirePreviewLine;
         let worldGroup, buildingsGroup, wiresGroup, dynamicGroup;
-        const buildingMeshes = new Map(), wireMeshes = new Map(), cargoMeshes = [], truckMeshes = [], botMeshes = [], workerMeshes = [];
+        const buildingMeshes = new Map(), wireMeshes = new Map(), massDeleteHighlights = new Map(), cargoMeshes = [], truckMeshes = [], botMeshes = [], workerMeshes = [];
+        let massDeleteSelectedIds = new Set();
         let currentPreset = (window.__IEdev && window.__IEdev.low) ? 'lite' : 'insane', trackpadMode = 'zoom', showGrid = true, selectedBuildingId = null, fpsSmooth = 60, dynamicScale = 1.5;
         const camState = { target: new THREE.Vector3(0, 0, 12), yaw: Math.PI / 4, pitch: 0.78, distance: 24 };
 
         function gridToWorld(gx, gz) { return new THREE.Vector3(gx - HALF_GRID + 0.5, 0, gz - HALF_GRID + 0.5); }
         function worldToGrid(wx, wz) { return { x: Math.floor(wx + HALF_GRID), z: Math.floor(wz + HALF_GRID) }; }
+
+        function syncMassDeleteHighlights(s) {
+          const active = new Set();
+          for (const b of s.buildings) {
+            if (!massDeleteSelectedIds.has(b.id)) continue;
+            active.add(b.id);
+            const def = BUILDINGS[b.type]; if (!def) continue;
+            const dims = getFootprintSize(def, b.dir || 0), w = dims.w, d = dims.d || def.d || 1;
+            let h = massDeleteHighlights.get(b.id);
+            if (!h || h.w !== w || h.d !== d || h.dir !== (b.dir || 0)) {
+              if (h) { buildingsGroup.remove(h.line); h.line.geometry.dispose(); h.line.material.dispose(); }
+              const geo = new THREE.EdgesGeometry(new THREE.BoxGeometry(w + 0.06, 0.025, d + 0.06));
+              const mat = new THREE.LineBasicMaterial({ color: 0xfb7185, depthTest: false, transparent: true, opacity: 0.98 });
+              const line = new THREE.LineSegments(geo, mat); line.renderOrder = 20;
+              h = { line, w, d, dir: b.dir || 0 }; massDeleteHighlights.set(b.id, h); buildingsGroup.add(line);
+            }
+            const wp = gridToWorld(b.x + (w - 1) * 0.5, b.z + (d - 1) * 0.5);
+            h.line.position.set(wp.x, 0.075, wp.z); h.line.rotation.y = DIRS[b.dir || 0].angle;
+          }
+          for (const [id, h] of massDeleteHighlights.entries()) {
+            if (!active.has(id)) { buildingsGroup.remove(h.line); h.line.geometry.dispose(); h.line.material.dispose(); massDeleteHighlights.delete(id); }
+          }
+        }
 
         function createGableRoofMesh(width, depth, ridgeHeight, mat) { const s = new THREE.Shape(); s.moveTo(-width * 0.5, 0); s.lineTo(width * 0.5, 0); s.lineTo(0, ridgeHeight); s.closePath(); const geo = new THREE.ExtrudeGeometry(s, { depth, bevelEnabled: false }); geo.translate(0, 0, -depth * 0.5); const mesh = new THREE.Mesh(geo, mat); mesh.castShadow = true; mesh.receiveShadow = true; return mesh; }
         
@@ -3037,6 +3069,7 @@
             if (e.anim.core) { if (e.anim.core.geometry.type === 'OctahedronGeometry') e.anim.core.rotation.y = time * 1.4; if (e.anim.core.material?.emissiveIntensity !== undefined) e.anim.core.material.emissiveIntensity = run ? 0.75 + Math.sin(time * 4 + b.id) * 0.25 : 0.1; }
           }
           for (const [id, e] of buildingMeshes.entries()) { if (!activeIds.has(id)) { buildingsGroup.remove(e.group); buildingMeshes.delete(id); } }
+          syncMassDeleteHighlights(s);
 
           const activeWK = new Set();
           for (const w of s.wires) {
@@ -3090,26 +3123,59 @@
           if (!(window.__IEpost && window.__IEpost.render(renderer, scene, camera, currentPreset))) renderer.render(scene, camera); 
         }
 
-        return { init, applyPreset, rebuildStaticWorld, syncSceneWithState, setHoverTile, setWirePreview, screenToWorld, worldToGrid, handleResize, render, panCamera: (dx, dz) => { camState.target.x = Math.max(-56, Math.min(56, camState.target.x + (dx * Math.cos(camState.yaw) + dz * Math.sin(camState.yaw)))); camState.target.z = Math.max(-56, Math.min(56, camState.target.z + (-dx * Math.sin(camState.yaw) + dz * Math.cos(camState.yaw)))); updateCameraTransform(); }, focusWorld: (wx, wz) => { camState.target.x = Math.max(-56, Math.min(56, wx)); camState.target.z = Math.max(-56, Math.min(56, wz)); updateCameraTransform(); }, rotateCamera: (dY) => { camState.yaw += dY; updateCameraTransform(); }, zoomCamera: (dD) => { camState.distance = Math.max(8, Math.min(64, camState.distance + dD)); updateCameraTransform(); }, getSelectedBuildingId: () => selectedBuildingId, setSelectedBuilding: id => { selectedBuildingId = id; }, getTrackpadMode: () => trackpadMode, toggleTrackpadMode: () => (trackpadMode = trackpadMode === 'zoom' ? 'pan' : 'zoom'), toggleGrid: () => { showGrid = !showGrid; if (gridHelper) gridHelper.visible = showGrid; return showGrid; }, _x: () => ({ scene, renderer, camera, sunLight, hemiLight, skyUniforms, waterUniforms, buildingMeshes, buildingsGroup, camState, preset: currentPreset, applyPreset }), getStats: () => ({ fps: Math.round(fpsSmooth), scale: dynamicScale, calls: renderer?.info?.render?.calls || 0 }) };
+        return { init, applyPreset, rebuildStaticWorld, syncSceneWithState, setHoverTile, setWirePreview, screenToWorld, worldToGrid, handleResize, render, panCamera: (dx, dz) => { camState.target.x = Math.max(-56, Math.min(56, camState.target.x + (dx * Math.cos(camState.yaw) + dz * Math.sin(camState.yaw)))); camState.target.z = Math.max(-56, Math.min(56, camState.target.z + (-dx * Math.sin(camState.yaw) + dz * Math.cos(camState.yaw)))); updateCameraTransform(); }, focusWorld: (wx, wz) => { camState.target.x = Math.max(-56, Math.min(56, wx)); camState.target.z = Math.max(-56, Math.min(56, wz)); updateCameraTransform(); }, rotateCamera: (dY) => { camState.yaw += dY; updateCameraTransform(); }, zoomCamera: (dD) => { camState.distance = Math.max(8, Math.min(64, camState.distance + dD)); updateCameraTransform(); }, getSelectedBuildingId: () => selectedBuildingId, setSelectedBuilding: id => { selectedBuildingId = id; }, setMassDeleteSelection: ids => { massDeleteSelectedIds = new Set(ids || []); }, getTrackpadMode: () => trackpadMode, toggleTrackpadMode: () => (trackpadMode = trackpadMode === 'zoom' ? 'pan' : 'zoom'), toggleGrid: () => { showGrid = !showGrid; if (gridHelper) gridHelper.visible = showGrid; return showGrid; }, _x: () => ({ scene, renderer, camera, sunLight, hemiLight, skyUniforms, waterUniforms, buildingMeshes, buildingsGroup, camState, preset: currentPreset, applyPreset }), getStats: () => ({ fps: Math.round(fpsSmooth), scale: dynamicScale, calls: renderer?.info?.render?.calls || 0 }) };
       })();
 
       const Input = (() => {
         let selTool = null, bDir = 0, wStart = null, isD = false, dMode = null, lx = 0, ly = 0, dMoved = false, lPt = '', kDown = new Set();
-        function setTool(t) { selTool = t; wStart = null; Graphics.setWirePreview(null); Graphics.setHoverTile(null, null, false, bDir, null); const bn = document.getElementById('toolHelperText'), cx = document.getElementById('btnCancelTool'); if (!t) { if (bn) bn.textContent = 'Select a structure below (Green = IN • Orange = OUT • Arrow = Facing)'; if (cx) cx.classList.add('hidden'); } else { const df = BUILDINGS[t]; if (bn) bn.textContent = t === 'power_wire' ? 'Click first powered node, then click second node within 9 tiles' : t === 'bulldoze' ? 'Click or drag over structures to demolish (50% refund)' : `Placing ${df?.name} ($${df?.cost}) — Press [R] to Rotate`; if (cx) cx.classList.remove('hidden'); } UI.renderBuildDock(); }
+        const massDeleteIds = new Set();
+        function updateMassDeleteControls() {
+          const active = selTool === 'mass_delete', count = massDeleteIds.size;
+          const all = document.getElementById('btnMassDeleteAll'), clear = document.getElementById('btnMassDeleteClear'), confirmBtn = document.getElementById('btnMassDeleteConfirm');
+          if (all) all.classList.toggle('hidden', !active);
+          if (clear) clear.classList.toggle('hidden', !active || count === 0);
+          if (confirmBtn) { confirmBtn.classList.toggle('hidden', !active || count === 0); confirmBtn.textContent = `🗑 Delete (${count})`; }
+          const bn = document.getElementById('toolHelperText');
+          if (active && bn) bn.textContent = `Mass Delete: click or drag over buildings to select • ${count} selected`;
+          Graphics.setMassDeleteSelection(massDeleteIds);
+        }
+        function clearMassDeleteSelection() { massDeleteIds.clear(); updateMassDeleteControls(); }
+        function selectAllForMassDelete() { if (!state || selTool !== 'mass_delete') return; for (const b of state.buildings) massDeleteIds.add(b.id); updateMassDeleteControls(); }
+        function confirmMassDelete() {
+          if (!state || selTool !== 'mass_delete' || massDeleteIds.size === 0) return;
+          const ids = [...massDeleteIds].filter(id => !!getBuildingById(state, id));
+          if (!ids.length) { clearMassDeleteSelection(); return; }
+          if (!confirm(`Delete ${ids.length} selected building${ids.length === 1 ? '' : 's'}? Each one will be returned to your building inventory.`)) return;
+          let removed = 0;
+          for (const id of ids) if (removeBuildingInState(state, id)) removed++;
+          if (ids.includes(Graphics.getSelectedBuildingId())) { Graphics.setSelectedBuilding(null); UI.closeInspector(); }
+          clearMassDeleteSelection(); setTool(null);
+          if (removed) { SoundFX.play('delete'); UI.toast(`${removed} building${removed === 1 ? '' : 's'} returned to your inventory.`, 'emerald'); }
+        }
+        function setTool(t) {
+          const previous = selTool;
+          if (previous === 'mass_delete' && t !== 'mass_delete') clearMassDeleteSelection();
+          if (t === 'mass_delete' && previous !== 'mass_delete') massDeleteIds.clear();
+          selTool = t; wStart = null; Graphics.setWirePreview(null); Graphics.setHoverTile(null, null, false, bDir, null);
+          const bn = document.getElementById('toolHelperText'), cx = document.getElementById('btnCancelTool');
+          if (!t) { if (bn) bn.textContent = 'Select a structure below (Green = IN • Orange = OUT • Arrow = Facing)'; if (cx) cx.classList.add('hidden'); }
+          else { const df = BUILDINGS[t]; if (bn) bn.textContent = t === 'power_wire' ? 'Click first powered node, then click second node within 9 tiles' : t === 'bulldoze' ? 'Click or drag over structures to return them to inventory' : t === 'mass_delete' ? 'Click or drag over buildings to select multiple for deletion' : `Placing ${df?.name} ($${df?.cost}) — Press [R] to Rotate`; if (cx) cx.classList.remove('hidden'); }
+          updateMassDeleteControls(); UI.renderBuildDock();
+        }
         function rotateDir() { const sId = Graphics.getSelectedBuildingId(); if (!selTool && sId && state) { const b = getBuildingById(state, sId); if (b) { b.dir = ((b.dir || 0) + 1) % 4; SoundFX.play('wire'); UI.updateInspector(b); return; } } bDir = (bDir + 1) % 4; const bt = document.getElementById('btnRotateTool'); if (bt) bt.textContent = `Dir: ${DIRS[bDir].name} [R]`; SoundFX.play('wire'); }
-        function applyToolAtGrid(gx, gz) { if (!state || !selTool) return; if (selTool === 'bulldoze') { const tg = getBuildingAt(state, gx, gz); if (tg && removeBuildingInState(state, tg.id)) { SoundFX.play('delete'); if (Graphics.getSelectedBuildingId() === tg.id) { Graphics.setSelectedBuilding(null); UI.closeInspector(); } } return; } if (selTool === 'power_wire') { const tg = getBuildingAt(state, gx, gz); if (!tg) return; if (!wStart) { wStart = tg; SoundFX.play('wire'); UI.toast(`Selected ${BUILDINGS[tg.type]?.name}. Click target.`, 'sky'); } else { const d = Math.hypot(getBuildingCenter(wStart).x - getBuildingCenter(tg).x, getBuildingCenter(wStart).z - getBuildingCenter(tg).z); if (d > 9.5) UI.toast('Too far! Max 9 tiles.', 'rose'); else if (state.money < 15) UI.toast('Not enough funds.', 'rose'); else if (addWireInState(state, wStart.id, tg.id)) { state.money -= 15; SoundFX.play('wire'); UI.toast('Line connected!', 'emerald'); } wStart = null; Graphics.setWirePreview(null); } return; } const df = BUILDINGS[selTool]; if (!df) return; if (state.money < df.cost) { UI.toast(`Need $${df.cost.toLocaleString()}.`, 'rose'); return; } if (placeBuildingInState(state, selTool, gx, gz, bDir, false)) { SoundFX.play('build'); if (df.housingCap) UI.toast(`🏠 ${df.name} built! +${df.housingCap} beds.`, 'emerald'); } }
+        function applyToolAtGrid(gx, gz) { if (!state || !selTool) return; if (selTool === 'mass_delete') { const tg = getBuildingAt(state, gx, gz); if (tg && !massDeleteIds.has(tg.id)) { massDeleteIds.add(tg.id); updateMassDeleteControls(); } return; } if (selTool === 'bulldoze') { const tg = getBuildingAt(state, gx, gz); if (tg && removeBuildingInState(state, tg.id)) { SoundFX.play('delete'); if (Graphics.getSelectedBuildingId() === tg.id) { Graphics.setSelectedBuilding(null); UI.closeInspector(); } } return; } if (selTool === 'power_wire') { const tg = getBuildingAt(state, gx, gz); if (!tg) return; if (!wStart) { wStart = tg; SoundFX.play('wire'); UI.toast(`Selected ${BUILDINGS[tg.type]?.name}. Click target.`, 'sky'); } else { const d = Math.hypot(getBuildingCenter(wStart).x - getBuildingCenter(tg).x, getBuildingCenter(wStart).z - getBuildingCenter(tg).z); if (d > 9.5) UI.toast('Too far! Max 9 tiles.', 'rose'); else if (state.money < 15) UI.toast('Not enough funds.', 'rose'); else if (addWireInState(state, wStart.id, tg.id)) { state.money -= 15; SoundFX.play('wire'); UI.toast('Line connected!', 'emerald'); } wStart = null; Graphics.setWirePreview(null); } return; } const df = BUILDINGS[selTool]; if (!df) return; if ((state.buildingInventory?.[selTool] || 0) <= 0 && state.money < df.cost) { UI.toast(`Need $${df.cost.toLocaleString()} or have one in your inventory.`, 'rose'); return; } if (placeBuildingInState(state, selTool, gx, gz, bDir, false)) { SoundFX.play('build'); if (dMode !== 'paint') UI.renderBuildDock(); if (df.housingCap) UI.toast(`🏠 ${df.name} built! +${df.housingCap} beds.`, 'emerald'); } }
 
         function init() {
           const c = document.getElementById('gameCanvas'); c.addEventListener('contextmenu', e => e.preventDefault());
-          c.addEventListener('pointerdown', e => { c.setPointerCapture(e.pointerId); isD = true; dMoved = false; lx = e.clientX; ly = e.clientY; lPt = ''; if (e.button === 2 || e.shiftKey) dMode = 'rotate'; else if (selTool && (BUILDINGS[selTool]?.isNetwork || selTool === 'bulldoze')) { dMode = 'paint'; const wp = Graphics.screenToWorld(e.clientX, e.clientY); if (wp) { const g = Graphics.worldToGrid(wp.x, wp.z); lPt = `${g.x},${g.z}`; applyToolAtGrid(g.x, g.z); } } else dMode = 'pan'; });
-          c.addEventListener('pointermove', e => { const dx = e.clientX - lx, dy = e.clientY - ly; if (Math.hypot(dx, dy) > 4) dMoved = true; if (isD) { if (dMode === 'rotate') Graphics.rotateCamera(-dx * 0.007); else if (dMode === 'pan') Graphics.panCamera(-dx * 0.042, -dy * 0.042); else if (dMode === 'paint') { const wp = Graphics.screenToWorld(e.clientX, e.clientY); if (wp) { const g = Graphics.worldToGrid(wp.x, wp.z), k = `${g.x},${g.z}`; if (k !== lPt) { lPt = k; applyToolAtGrid(g.x, g.z); } } } } lx = e.clientX; ly = e.clientY; const wp = Graphics.screenToWorld(e.clientX, e.clientY); if (wp && state) { const g = Graphics.worldToGrid(wp.x, wp.z); if (selTool && selTool !== 'power_wire') { const val = selTool === 'bulldoze' ? (g.x >= 0 && g.z >= 0 && g.x < GRID_SIZE && g.z < GRID_SIZE && !!getBuildingAt(state, g.x, g.z)) : canPlaceFootprint(state, selTool, g.x, g.z, bDir); Graphics.setHoverTile(g.x, g.z, val, bDir, BUILDINGS[selTool]); } else Graphics.setHoverTile(null, null, false, bDir, null); if (selTool === 'power_wire' && wStart) Graphics.setWirePreview(wStart, wp.x, wp.z); } });
-          c.addEventListener('pointerup', e => { try { c.releasePointerCapture(e.pointerId); } catch (_) {} if (!dMoved && state) { const wp = Graphics.screenToWorld(e.clientX, e.clientY); if (wp) { const g = Graphics.worldToGrid(wp.x, wp.z); if (selTool) { if (dMode !== 'paint') applyToolAtGrid(g.x, g.z); } else { const clk = getBuildingAt(state, g.x, g.z); if (clk) { Graphics.setSelectedBuilding(clk.id); UI.openInspector(clk); } else { const t = state.tiles[g.z]?.[g.x]; if (t?.deposit) UI.toast(`⛏ ${DEPOSIT_PALETTE[t.deposit]?.label || t.deposit} — Place matching Extractor here!`, 'sky'); Graphics.setSelectedBuilding(null); UI.closeInspector(); } } } } isD = false; dMode = null; });
+          c.addEventListener('pointerdown', e => { c.setPointerCapture(e.pointerId); isD = true; dMoved = false; lx = e.clientX; ly = e.clientY; lPt = ''; if (e.button === 2 || e.shiftKey) dMode = 'rotate'; else if (selTool && (BUILDINGS[selTool]?.isNetwork || selTool === 'bulldoze' || selTool === 'mass_delete')) { dMode = 'paint'; const wp = Graphics.screenToWorld(e.clientX, e.clientY); if (wp) { const g = Graphics.worldToGrid(wp.x, wp.z); lPt = `${g.x},${g.z}`; applyToolAtGrid(g.x, g.z); } } else dMode = 'pan'; });
+          c.addEventListener('pointermove', e => { const dx = e.clientX - lx, dy = e.clientY - ly; if (Math.hypot(dx, dy) > 4) dMoved = true; if (isD) { if (dMode === 'rotate') Graphics.rotateCamera(-dx * 0.007); else if (dMode === 'pan') Graphics.panCamera(-dx * 0.042, -dy * 0.042); else if (dMode === 'paint') { const wp = Graphics.screenToWorld(e.clientX, e.clientY); if (wp) { const g = Graphics.worldToGrid(wp.x, wp.z), k = `${g.x},${g.z}`; if (k !== lPt) { lPt = k; applyToolAtGrid(g.x, g.z); } } } } lx = e.clientX; ly = e.clientY; const wp = Graphics.screenToWorld(e.clientX, e.clientY); if (wp && state) { const g = Graphics.worldToGrid(wp.x, wp.z); if (selTool && selTool !== 'power_wire') { const val = (selTool === 'bulldoze' || selTool === 'mass_delete') ? (g.x >= 0 && g.z >= 0 && g.x < GRID_SIZE && g.z < GRID_SIZE && !!getBuildingAt(state, g.x, g.z)) : canPlaceFootprint(state, selTool, g.x, g.z, bDir); Graphics.setHoverTile(g.x, g.z, val, bDir, BUILDINGS[selTool]); } else Graphics.setHoverTile(null, null, false, bDir, null); if (selTool === 'power_wire' && wStart) Graphics.setWirePreview(wStart, wp.x, wp.z); } });
+          c.addEventListener('pointerup', e => { try { c.releasePointerCapture(e.pointerId); } catch (_) {} if (!dMoved && state) { const wp = Graphics.screenToWorld(e.clientX, e.clientY); if (wp) { const g = Graphics.worldToGrid(wp.x, wp.z); if (selTool) { if (dMode !== 'paint') applyToolAtGrid(g.x, g.z); } else { const clk = getBuildingAt(state, g.x, g.z); if (clk) { Graphics.setSelectedBuilding(clk.id); UI.openInspector(clk); } else { const t = state.tiles[g.z]?.[g.x]; if (t?.deposit) UI.toast(`⛏ ${DEPOSIT_PALETTE[t.deposit]?.label || t.deposit} — Place matching Extractor here!`, 'sky'); Graphics.setSelectedBuilding(null); UI.closeInspector(); } } } } if (dMode === 'paint' && selTool && selTool !== 'mass_delete') UI.renderBuildDock(); isD = false; dMode = null; });
           c.addEventListener('wheel', e => { e.preventDefault(); if (e.ctrlKey || Graphics.getTrackpadMode() === 'zoom') Graphics.zoomCamera(e.deltaY * 0.018); else Graphics.panCamera(e.deltaX * 0.03, e.deltaY * 0.03); }, { passive: false });
           window.addEventListener('keydown', e => { if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return; const k = e.key.toLowerCase(); kDown.add(k); if (k === 'r') rotateDir(); else if (k === 't') UI.toggleResearchModal(); else if (k === 'p') setTool(selTool === 'power_wire' ? null : 'power_wire'); else if (k === 'x') setTool(selTool === 'bulldoze' ? null : 'bulldoze'); else if (k === 'escape') { setTool(null); Graphics.setSelectedBuilding(null); UI.closeInspector(); document.getElementById('researchModal')?.classList.add('hidden'); } else if (k === 'q') Graphics.rotateCamera(-0.15); else if (k === 'e') Graphics.rotateCamera(0.15); else if (k === '=' || k === '+') Graphics.zoomCamera(-2.5); else if (k === '-' || k === '_') Graphics.zoomCamera(2.5); });
           window.addEventListener('keyup', e => kDown.delete(e.key.toLowerCase()));
         }
         function updateKeyboardPan(dt) { if (kDown.size === 0) return; const sp = 22 * dt; let dx = 0, dz = 0; if (kDown.has('w') || kDown.has('arrowup')) dz -= sp; if (kDown.has('s') || kDown.has('arrowdown')) dz += sp; if (kDown.has('a') || kDown.has('arrowleft')) dx -= sp; if (kDown.has('d') || kDown.has('arrowright')) dx += sp; if (dx !== 0 || dz !== 0) Graphics.panCamera(dx, dz); }
-        return { init, setTool, rotateDir, getSelectedTool: () => selTool, getSelectedBuildingId: () => Graphics.getSelectedBuildingId(), clearSelectedBuilding: () => Graphics.setSelectedBuilding(null), updateKeyboardPan };
+        return { init, setTool, rotateDir, getSelectedTool: () => selTool, getSelectedBuildingId: () => Graphics.getSelectedBuildingId(), clearSelectedBuilding: () => Graphics.setSelectedBuilding(null), updateKeyboardPan, confirmMassDelete, selectAllForMassDelete, clearMassDeleteSelection, isMassDeleteSelected: id => massDeleteIds.has(id) };
       })();
 
       const UI = (() => {
@@ -3121,10 +3187,10 @@
           tEl.innerHTML = ''; CATEGORIES.forEach(c => { const b = document.createElement('button'); b.className = `px-2.5 py-1 rounded-xl text-xs font-bold whitespace-nowrap transition cursor-pointer ${c.id === aCat ? 'bg-sky-500/25 border border-sky-400/55 text-white' : 'text-slate-300 hover:bg-slate-800/70 border border-transparent'}`; b.textContent = c.name; b.onclick = () => setCategory(c.id); tEl.appendChild(b); });
           sEl.innerHTML = ''; const cT = Input.getSelectedTool();
           Object.values(BUILDINGS).filter(b => b.category === aCat).forEach(d => {
-            const un = isBuildingUnlocked(state, d), ac = cT === d.id, cr = document.createElement('button');
+            const un = isBuildingUnlocked(state, d), ac = cT === d.id, stock = state.buildingInventory?.[d.id] || 0, cr = document.createElement('button');
             cr.className = `build-card shrink-0 w-36 sm:w-40 rounded-xl p-2 border text-left flex flex-col justify-between cursor-pointer ${ac ? 'active border-sky-400 bg-sky-500/20' : un ? 'border-slate-700/80 bg-slate-900/75 hover:border-slate-500' : 'border-slate-800 bg-slate-950/75 opacity-60'}`;
             let mB = !un ? `<span class="text-[10px] text-violet-300 font-semibold truncate">🔒 ${RESEARCH[d.unlock]?.name || d.unlock}</span>` : d.housingCap ? `<span class="text-[10px] text-amber-300 font-mono-num">🏠 +${d.housingCap} Beds</span>` : d.power < 0 ? `<span class="text-[10px] text-emerald-300 font-mono-num">⚡ +${-d.power} MW</span>` : d.power > 0 ? `<span class="text-[10px] text-amber-300 font-mono-num">⚡ -${d.power} MW</span>` : `<span class="text-[10px] text-slate-400">${d.w}×${d.d} Tile</span>`;
-            cr.innerHTML = `<div class="flex items-center justify-between gap-1"><span class="text-base">${d.icon}</span><span class="font-mono-num text-[11px] font-bold ${d.cost === 0 ? 'text-slate-300' : 'text-emerald-400'}">${d.cost === 0 ? 'FREE' : '$' + d.cost.toLocaleString()}</span></div><div class="font-bold text-xs text-white truncate mt-1">${d.name}</div><div class="mt-0.5 flex items-center justify-between">${mB}</div>`;
+            cr.innerHTML = `<div class="flex items-center justify-between gap-1"><span class="text-base">${d.icon}</span><span class="font-mono-num text-[11px] font-bold ${stock > 0 ? 'text-emerald-300' : d.cost === 0 ? 'text-slate-300' : 'text-emerald-400'}">${stock > 0 ? `📦 ×${stock}` : d.cost === 0 ? 'FREE' : '$' + d.cost.toLocaleString()}</span></div><div class="font-bold text-xs text-white truncate mt-1">${d.name}</div><div class="mt-0.5 flex items-center justify-between">${mB}</div>`;
             cr.onclick = () => { if (!un) toast(`Unlock "${RESEARCH[d.unlock]?.name}" first!`, 'amber'); else Input.setTool(cT === d.id ? null : d.id); }; sEl.appendChild(cr);
           });
         }
@@ -3243,6 +3309,7 @@
             else if (mLayer === 'pollution') c.fillStyle = (d?.pollution || 0) < 0 ? '#34d399' : (d?.pollution || 0) > 0 ? '#f97316' : '#64748b';
             else c.fillStyle = b.type === 'road' ? '#475569' : (d?.housingCap || 0) > 0 ? '#fbbf24' : (d?.power || 0) < 0 ? '#facc15' : '#38bdf8';
             c.fillRect(b.x * s, b.z * s, Math.max(2, w * s), Math.max(2, (dp || d?.d || 1) * s));
+            if (Input.isMassDeleteSelected(b.id)) { c.strokeStyle = '#fb7185'; c.lineWidth = 2; c.strokeRect(b.x * s + 0.5, b.z * s + 0.5, Math.max(2, w * s) - 1, Math.max(2, (dp || d?.d || 1) * s) - 1); }
           }
         }
         function updateHud() {
@@ -3318,7 +3385,7 @@
 
         function doLoadGame(payload, slot) {
           if (!payload || !payload.state) return false;
-          state = payload.state; nextBuildingId = payload.nextBuildingId || (state.buildings.length + 10); currentSaveSlot = slot;
+          state = payload.state; state.buildingInventory ||= {}; nextBuildingId = payload.nextBuildingId || (state.buildings.length + 10); currentSaveSlot = slot;
           Graphics.rebuildStaticWorld(state); renderBuildDock(); updateHud(); 
           document.getElementById('titleOverlay')?.classList.add('hidden'); 
           toast(slot === 'AUTO' ? '💾 Autosave restored!' : `💾 Loaded from Slot ${slot}!`, 'emerald'); return true;
@@ -3339,8 +3406,12 @@
           document.getElementById('btnToggleObj').onclick = e => { oCol = !oCol; document.getElementById('objBody').classList.toggle('hidden', oCol); e.target.textContent = oCol ? '+' : '−'; };
           const mc = document.getElementById('miniMapCanvas'); mc.addEventListener('pointerdown', e => { const r = mc.getBoundingClientRect(); Graphics.focusWorld(((e.clientX - r.left) / r.width) * GRID_SIZE - HALF_GRID, ((e.clientY - r.top) / r.height) * GRID_SIZE - HALF_GRID); }); document.querySelectorAll('.map-layer-btn').forEach(b => b.onclick = () => { mLayer = b.dataset.maplayer; document.querySelectorAll('.map-layer-btn').forEach(x => x.className = `map-layer-btn text-[10px] px-1.5 py-0.5 rounded cursor-pointer ${x.dataset.maplayer === mLayer ? 'bg-sky-500/30 text-sky-200 font-semibold' : 'text-slate-400 hover:text-white'}`); });
           document.getElementById('btnCamRotL').onclick = () => Graphics.rotateCamera(-0.25); document.getElementById('btnCamRotR').onclick = () => Graphics.rotateCamera(0.25); document.getElementById('btnCamZoomIn').onclick = () => Graphics.zoomCamera(-3); document.getElementById('btnCamZoomOut').onclick = () => Graphics.zoomCamera(3);
-          document.getElementById('btnCloseInspector').onclick = () => { Input.clearSelectedBuilding(); closeInspector(); }; document.getElementById('btnInspCycleRecipe').onclick = () => { const b = getBuildingById(state, Input.getSelectedBuildingId()), d = b ? BUILDINGS[b.type] : null; if (!b || !d?.recipes || d.recipes.length <= 1) return; b.activeRecipeIdx = ((b.activeRecipeIdx || 0) + 1) % d.recipes.length; b.progress = 0; SoundFX.play('wire'); updateInspector(b); }; document.getElementById('btnInspRotate').onclick = () => Input.rotateDir(); document.getElementById('btnInspRepair').onclick = () => { const b = getBuildingById(state, Input.getSelectedBuildingId()); if (!b || !state) return; if (b.condition >= 99) return toast('Already at 100%.', 'sky'); if (state.money < 40) return toast('Need $40.', 'rose'); state.money -= 40; b.condition = 100; SoundFX.play('build'); updateInspector(b); }; document.getElementById('btnInspDelete').onclick = () => { const i = Input.getSelectedBuildingId(); if (i && state && removeBuildingInState(state, i)) { SoundFX.play('delete'); Input.clearSelectedBuilding(); closeInspector(); toast('Demolished.', 'amber'); } };
-          document.getElementById('btnRotateTool').onclick = () => Input.rotateDir(); document.getElementById('btnCancelTool').onclick = () => Input.setTool(null); document.getElementById('btnResearch').onclick = () => toggleResearchModal(); document.getElementById('btnDockResearch').onclick = () => toggleResearchModal(); document.getElementById('btnCloseResearch').onclick = () => toggleResearchModal();
+          document.getElementById('btnCloseInspector').onclick = () => { Input.clearSelectedBuilding(); closeInspector(); }; document.getElementById('btnInspCycleRecipe').onclick = () => { const b = getBuildingById(state, Input.getSelectedBuildingId()), d = b ? BUILDINGS[b.type] : null; if (!b || !d?.recipes || d.recipes.length <= 1) return; b.activeRecipeIdx = ((b.activeRecipeIdx || 0) + 1) % d.recipes.length; b.progress = 0; SoundFX.play('wire'); updateInspector(b); }; document.getElementById('btnInspRotate').onclick = () => Input.rotateDir(); document.getElementById('btnInspRepair').onclick = () => { const b = getBuildingById(state, Input.getSelectedBuildingId()); if (!b || !state) return; if (b.condition >= 99) return toast('Already at 100%.', 'sky'); if (state.money < 40) return toast('Need $40.', 'rose'); state.money -= 40; b.condition = 100; SoundFX.play('build'); updateInspector(b); }; document.getElementById('btnInspDelete').onclick = () => { const i = Input.getSelectedBuildingId(); if (i && state && removeBuildingInState(state, i)) { SoundFX.play('delete'); Input.clearSelectedBuilding(); closeInspector(); renderBuildDock(); toast('Building returned to inventory.', 'emerald'); } };
+          document.getElementById('btnRotateTool').onclick = () => Input.rotateDir(); document.getElementById('btnCancelTool').onclick = () => Input.setTool(null);
+          document.getElementById('btnMassDeleteAll').onclick = () => Input.selectAllForMassDelete();
+          document.getElementById('btnMassDeleteClear').onclick = () => Input.clearMassDeleteSelection();
+          document.getElementById('btnMassDeleteConfirm').onclick = () => Input.confirmMassDelete();
+          document.getElementById('btnResearch').onclick = () => toggleResearchModal(); document.getElementById('btnDockResearch').onclick = () => toggleResearchModal(); document.getElementById('btnCloseResearch').onclick = () => toggleResearchModal();
           document.getElementById('btnAudio').onclick = e => e.target.textContent = SoundFX.toggleMute() ? '🔇' : '🔊'; 
           document.getElementById('btnSave').onclick = () => openSaveLoadModal('save'); 
           document.getElementById('btnCloseSaveLoad').onclick = () => document.getElementById('saveLoadModal').classList.add('hidden');
