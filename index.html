@@ -155,7 +155,7 @@
   };
   // ---- torus in XZ plane (axis Y) centred at x,y,z ; rotate via o.rx/o.rz for other axes
   P.torus = function (mat, x, y, z, R, r, rs, ts, o) {
-    o = o || {}; rs = rs || (this.q >= 2 ? 10 : 6); ts = ts || (this.q >= 2 ? 36 : this.q ? 24 : 14); const t = o.tile || 1;
+    o = o || {}; rs = rs || (this.q >= 2 ? 10 : 6); ts = ts || (this.q >= 2 ? 36 : this.q ? 24 : 14); const t = o.tile || 1; if (o.arc == null) { ts = Math.min(ts, Math.max(8, Math.round(R * (this.q >= 2 ? 130 : this.q ? 100 : 70)))); if (r < 0.012 && rs > 3) rs = Math.max(3, rs - 1); }
     this.save().move(x, y, z); if (o.ry) this.rotY(o.ry); if (o.rx) this.rotX(o.rx); if (o.rz) this.rotZ(o.rz);
     const v = [], n = [], uv = [], idx = [], a1 = o.arc == null ? TAU : o.arc; o = Object.assign({}, o, { y0: -r, yh: 2 * r });
     for (let i = 0; i <= ts; i++) { const a = a1 * i / ts, ca = Math.cos(a), sa = Math.sin(a); for (let j = 0; j <= rs; j++) { const b = TAU * j / rs, cb = Math.cos(b), sb = Math.sin(b);
@@ -190,7 +190,7 @@
   P.panel = function (mat, x, y, z, w, d, th, tilt, o) { o = o || {}; return this.box(mat, x, y, z, w, th, d, Object.assign({}, o, { rx: tilt })); };
   // ---- pipe run through points [[x,y,z],...] radius r; elbows rounded with spheres. o.flange adds ring flanges at joints
   P.pipe = function (mat, pts, r, o) {
-    o = o || {}; const seg = o.seg || (this.q >= 2 ? 14 : this.q ? 10 : 7);
+    o = o || {}; const seg = o.seg || (r < 0.03 ? (this.q >= 2 ? 8 : this.q ? 7 : 6) : (this.q >= 2 ? 14 : this.q ? 10 : 7));
     for (let i = 0; i < pts.length - 1; i++) {
       const a = pts[i], b = pts[i + 1], dx = b[0] - a[0], dy = b[1] - a[1], dz = b[2] - a[2], len = Math.hypot(dx, dy, dz); if (len < 1e-4) continue;
       this.save().move(a[0], a[1], a[2]);
@@ -680,7 +680,7 @@
   P.wellhead = (F, x, y, z, h) => { h = h || 0.3; F.cyl('steelDark', x, y, z, 0.07, 0.09, 0.05, 12); F.cyl('paint', x, y + 0.05, z, 0.04, 0.05, h * 0.4, 12, { c: 0x2563eb }); F.cyl('steel', x, y + 0.05 + h * 0.4, z, 0.055, 0.055, 0.03, 12);
     F.cyl('paint', x, y + 0.08 + h * 0.4, z, 0.035, 0.035, h * 0.3, 12, { c: 0xdc2626 }); F.cylX('steel', x, y + 0.12 + h * 0.4, z, 0.022, 0.2, 8); P.valve(F, x + 0.12, y + 0.12 + h * 0.4 - 0.0, z, 0.03); P.valve(F, x - 0.12, y + 0.12 + h * 0.4, z, 0.03); F.cyl('steel', x, y + 0.08 + h * 0.7, z, 0.015, 0.015, 0.06, 8); F.cyl('alu', x + 0.03, y + 0.16 + h * 0.7, z, 0.02, 0.02, 0.012, 10); };
   // horizontal pressure vessel on two saddles (axis along X)
-  P.hVessel = (F, x, y, z, len, r, c, ry) => F.at(x, y, z, ry || 0, f => { for (const s of [-1, 1]) f.box('concrete', s * len * 0.28, 0, 0, 0.06, r * 0.7, r * 1.6, { c: 0x9aa1ab }); f.cylX('alu', 0, r * 0.7 + r, 0, r, len, 20, { c }); for (const s of [-1, 1]) f.sphere('alu', s * len / 2, r * 0.7 + r, 0, r, 16, 8, { sy: 1, c, dome: false });
+  P.hVessel = (F, x, y, z, len, r, c, ry) => F.at(x, y, z, ry || 0, f => { for (const s of [-1, 1]) f.box('concrete', s * len * 0.28, 0, 0, 0.06, r * 0.7, r * 1.6, { c: 0x9aa1ab }); f.cylX('alu', 0, r * 0.7 + r, 0, r, len, f.q >= 2 ? 18 : f.q ? 14 : 9, { c }); for (const s of [-1, 1]) f.sphere('alu', s * len / 2, r * 0.7 + r, 0, r, f.q >= 2 ? 14 : f.q ? 11 : 8, f.q >= 2 ? 7 : f.q ? 5 : 4, { sy: 1, c, dome: false });
     f.cyl('steel', 0, r * 1.7 + r, 0, 0.03, 0.03, 0.04, 8); f.torus('steel', len * 0.2, r * 1.7 + r - 0.0, 0, 0.032, 0.008, 5, 10, { rx: 0 }); });
   // sluice box (inclined trough with riffles + water sheet) from (x0,y0,z0) high end to (x1,y1,z1)
   P.sluice = (F, a, b, w) => { const dx = b[0] - a[0], dz = b[2] - a[2], dy = b[1] - a[1], len = Math.hypot(dx, dy, dz), n = Math.max(3, Math.round(len / 0.07)), hl = Math.hypot(dx, dz) || 1, px = -dz / hl * w / 2, pz = dx / hl * w / 2;
@@ -735,8 +735,8 @@
     f.box('paint', 0, 0.075, 0.0, 0.07, 0.03, 0.05, { c: 0x1d1f24 });
   });
   // roof canopy on four columns (fuel island, loading apron). returns roof y
-  P.canopy = (F, x, y, z, w, d, h, col) => {
-    col = col == null ? 0xe6e9ee : col; F.box('paint', x, y + h, z, w, 0.03, d, { c: col, bev: 0.008 }); F.box('paint', x, y + h + 0.03, z, w + 0.01, 0.012, d + 0.01, { c: 0xd23b2b }); F.box('lamp', x, y + h - 0.004, z, w * 0.6, 0.006, d * 0.5);
+  P.canopy = (F, x, y, z, w, d, h, col, trim) => {
+    col = col == null ? 0xe6e9ee : col; F.box('paint', x, y + h, z, w, 0.03, d, { c: col, bev: 0.008 }); F.box('paint', x, y + h + 0.03, z, w + 0.01, 0.012, d + 0.01, { c: trim == null ? 0xd23b2b : trim }); F.box('lamp', x, y + h - 0.004, z, w * 0.6, 0.006, d * 0.5);
     for (const sx of [-1, 1]) for (const sz of [-1, 1]) F.box('steel', x + sx * (w / 2 - 0.03), y, z + sz * (d / 2 - 0.03), 0.026, h, 0.026, { bev: 0.004 });
     F.light(x, y + h - 0.02, z, [1, 0.92, 0.7], 1.1); return y + h + 0.042;
   };
@@ -1756,6 +1756,473 @@
   });
 })(typeof window !== 'undefined' ? window : globalThis);
 
+/* ---- models_proc2.js ---- */
+/* Processing buildings II: refinery, chemical_plant. Local frame: IN port +Z, OUT port -Z. */
+(function (root) {
+  'use strict';
+  const M = root.IEModels, P = root.IEParts, PI = Math.PI, TAU = PI * 2, reg = (t, w, d, f, v) => M.reg(t, w, d, f, v);
+  const PC = [0xe6b422, 0xd23b2b, 0x2a9d54, 0x3b82f6, 0xea6a1a, 0xaab3bf];
+  // circular platform ring with posts + handrail around a vertical vessel of radius r (top of grating at y)
+  const ring = (F, x, y, z, r, seg) => {
+    const R = r + 0.09, q = F.q, ts = q >= 2 ? 20 : q ? 14 : 10; F.cyl('grating', x, y, z, R, R, 0.014, ts, { tile: 0.5 }); F.torus('paint', x, y + 0.15, z, R, 0.007, 3, ts, { c: 0xe6b422 });
+    if (q >= 1) { F.torus('paint', x, y + 0.08, z, R, 0.005, 3, ts, { c: 0xe6b422 }); for (let i = 0; i < 6; i++) { const a = i * TAU / 6; F.box('paint', x + Math.cos(a) * R, y + 0.014, z + Math.sin(a) * R, 0.012, 0.14, 0.012, { c: 0xe6b422 }); } } if (q >= 2) F.torus('steelDark', x, y - 0.012, z, R - 0.005, 0.01, 3, ts);
+  };
+  // spinning fin-fan fan (hub + 4 blades) on a guard ring
+  const fan = (F, x, y, z, r, ph) => { F.cyl('steelDark', x, y, z, r, r, 0.012, 14); F.torus('steel', x, y + 0.012, z, r, 0.006, 4, 14, { c: 0x9aa4b0 }); if (F.q >= 1) F.anim('fan', [x, y + 0.016, z], 'spin', S => { S.cyl('steelDark', 0, -0.006, 0, 0.012, 0.012, 0.014, 8); for (let b = 0; b < 4; b++) S.at(0, 0, 0, b * PI / 2, s => s.box('alu', r * 0.52, 0, 0, r * 0.84, 0.003, r * 0.3, { c: 0xdfe5ec })); }, { axis: 'y', speed: 7, phase: ph || 0 }); };
+
+  // ------------------------------------------------------------------ cracking refinery: crude column, fired heater, FCC pair, pipe rack, LPG spheres, flare
+  reg('refinery', 3, 2, F => {
+    const y0 = P.slab(F, 3, 2, { drains: [[1.0, 0.85], [-1.1, 0.25]] }), q = F.q, seg = q >= 2 ? 26 : q ? 18 : 12;
+    // ---- crude distillation column (stepped), side-draw strippers, overhead line
+    const cx = -1.15, cz = -0.55, cy = y0 + 0.05;
+    F.cyl('concrete', cx, y0, cz, 0.2, 0.2, 0.05, seg, { c: 0x9aa1ab });
+    F.lathe('alu', cx, cy, cz, [[0.16, 0], [0.16, 0.1], [0.135, 0.1], [0.135, 0.72], [0.105, 0.8], [0.105, 1.22], [0.09, 1.27], [0.05, 1.32], [0, 1.34]], seg, { c: 0xc9d0d9, tile: 1.5 });
+    for (const y of [0.24, 0.42, 0.6, 0.92, 1.1]) F.torus('steel', cx, cy + y, cz, (y < 0.75 ? 0.135 : 0.105) + 0.004, 0.007, 4, seg, { c: 0x9aa4b0 });
+    for (const y of [0.34, 0.7, 1.0]) ring(F, cx, cy + y, cz, y < 0.75 ? 0.135 : 0.105, seg);
+    P.ladder(F, cx, cy, cz + 0.145, 1.15, 0, true); F.cyl('steel', cx, cy + 1.34, cz, 0.012, 0.012, 0.06, 8, { c: 0xc2c9d3 });
+    for (const [sz, hy] of [[-0.78, 0.56], [-0.34, 0.6]]) { const sx = cx + 0.32; F.cyl('alu', sx, y0, sz, 0.04, 0.04, hy, 14, { c: 0xc9d0d9 }); F.sphere('alu', sx, y0 + hy, sz, 0.04, 12, 6, { dome: true, c: 0xc9d0d9 }); F.torus('steel', sx, y0 + hy * 0.5, sz, 0.044, 0.006, 4, 12, { c: 0x9aa4b0 }); const yd = cy + (sz < -0.5 ? 0.62 : 0.9); F.pipe('steel', [[cx + 0.1, yd, cz], [cx + 0.2, yd, cz], [cx + 0.2, yd, sz], [sx, yd, sz], [sx, y0 + hy + 0.04, sz]], 0.013, { c: sz < -0.5 ? PC[4] : PC[2] }); F.pipe('steel', [[sx, y0 + 0.04, sz], [sx + 0.13, y0 + 0.04, sz]], 0.012, { c: PC[3] }); }
+    F.pipe('steel', [[cx, cy + 1.34, cz], [cx, cy + 1.5, cz], [cx + 0.34, cy + 1.5, cz], [cx + 0.34, y0 + 0.78, cz]], 0.02, { c: PC[0] });
+    F.cylX('steel', cx + 0.46, y0 + 0.78, cz - 0.04, 0.045, 0.26, 12, { c: 0xaeb7c3 }); F.cylX('steel', cx + 0.46, y0 + 0.66, cz + 0.04, 0.045, 0.26, 12, { c: 0xaeb7c3 }); P.hVessel(F, cx + 0.5, y0, cz + 0.3, 0.3, 0.05, 0xc9d0d9, 0);
+    // ---- fired heater with stack and glowing burner viewports
+    const hx = -0.48, hz = -0.56;
+    F.box('concrete', hx, y0, hz, 0.42, 0.04, 0.38, { c: 0x8a919b }); F.box('brick', hx, y0 + 0.04, hz, 0.36, 0.26, 0.32, { c: 0xa86a4a, bev: 0.008, tile: 0.8 }); F.box('steelDark', hx, y0 + 0.3, hz, 0.39, 0.02, 0.35); F.box('steel', hx, y0 + 0.32, hz, 0.22, 0.13, 0.22, { c: 0xaab3bf, bev: 0.006 });
+    for (let i = -1; i <= 1; i++) { F.box('steelDark', hx + i * 0.11, y0 + 0.17, hz + 0.163, 0.065, 0.05, 0.008); F.box('glowOrange', hx + i * 0.11, y0 + 0.175, hz + 0.168, 0.05, 0.036, 0.004); F.box('steelDark', hx + i * 0.055 + 0.0275, y0 + 0.04, hz + 0.163, 0.012, 0.26, 0.008); }
+    P.stack(F, hx, y0 + 0.45, hz, 0.06, 0.04, 0.6, { plain: true, c: 0xb8bcc4, bands: 4 }); F.light(hx, y0 + 0.18, hz + 0.25, [1, 0.5, 0.18], 1.2);
+    // ---- FCC regenerator + reactor with transfer lines, main fractionator
+    const rx = 0.0, rz = -0.55;
+    F.lathe('alu', rx, y0, rz, [[0.14, 0], [0.14, 0.5], [0.17, 0.58], [0.17, 0.85], [0.14, 0.95], [0.07, 1.02], [0, 1.04]], seg, { c: 0xc9d0d9, tile: 1.5 });
+    F.lathe('paint', rx + 0.4, y0, rz, [[0.09, 0], [0.09, 0.55], [0.11, 0.62], [0.11, 0.78], [0.08, 0.86], [0, 0.9]], seg, { c: 0xb04a30 });
+    F.lathe('alu', rx + 0.82, y0, rz, [[0.09, 0], [0.09, 1.0], [0.05, 1.08], [0, 1.1]], seg, { c: 0xc9d0d9, tile: 1.5 });
+    for (const y of [0.3, 0.7]) F.torus('steel', rx, y0 + y, rz, 0.145 + (y > 0.5 ? 0.025 : 0), 0.008, 4, seg, { c: 0x9aa4b0 }); for (const y of [0.25, 0.5, 0.75]) F.torus('steel', rx + 0.82, y0 + y, rz, 0.094, 0.007, 4, seg, { c: 0x9aa4b0 });
+    ring(F, rx, y0 + 0.6, rz, 0.17, seg); ring(F, rx + 0.4, y0 + 0.45, rz, 0.09, seg); ring(F, rx + 0.82, y0 + 0.55, rz, 0.09, seg);
+    P.ladder(F, rx, y0, rz + 0.145, 0.6, 0, true); P.ladder(F, rx + 0.82, y0, rz + 0.095, 0.9, 0, true);
+    F.pipe('steel', [[rx + 0.14, y0 + 0.22, rz], [rx + 0.4, y0 + 0.22, rz], [rx + 0.4, y0 + 0.1, rz]], 0.03, { c: 0x9aa4b0 }); F.pipe('steel', [[rx + 0.4, y0 + 0.86, rz], [rx + 0.4, y0 + 1.1, rz], [rx + 0.82, y0 + 1.1, rz], [rx + 0.82, y0 + 1.06, rz]], 0.024, { c: PC[0] });
+    F.cyl('alu', rx - 0.05, y0 + 1.0, rz + 0.05, 0.05, 0.03, 0.12, 12, { c: 0xaeb7c3 }); F.pipe('steel', [[rx, y0 + 1.04, rz], [rx - 0.05, y0 + 1.1, rz + 0.05]], 0.018, { c: 0x9aa4b0 });
+    // ---- flare stack + knock-out drum
+    P.hVessel(F, 1.12, y0, -0.2, 0.3, 0.06, 0xc9d0d9, 0); F.cyl('steel', 1.32, y0, -0.78, 0.04, 0.05, 0.12, 12, { c: 0xaab3bf }); F.cyl('steel', 1.32, y0 + 0.12, -0.78, 0.02, 0.034, 1.3, 10, { c: 0xaab3bf }); for (const y of [0.5, 0.9, 1.25]) F.torus('steelDark', 1.32, y0 + y, -0.78, 0.03, 0.006, 4, 10);
+    F.cyl('steelDark', 1.32, y0 + 1.42, -0.78, 0.034, 0.026, 0.05, 10); P.flame(F, 1.32, y0 + 1.47, -0.78, 1.5, 'orange'); F.pipe('steel', [[1.12, y0 + 0.18, -0.2], [1.12, y0 + 0.3, -0.5], [1.32, y0 + 0.3, -0.7]], 0.016, { c: PC[0] });
+    // ---- pipe rack with colour-coded lines, expansion loops, flanges
+    const rkz = -0.12, rky = y0 + 0.34, rx0 = -1.3, rx1 = 1.3, bay = (rx1 - rx0) / 6;
+    for (let i = 0; i <= 6; i++) { const x = rx0 + bay * i; for (const s of [-1, 1]) F.box('steelDark', x, y0, rkz + s * 0.12, 0.02, 0.34, 0.02); F.box('steelDark', x, rky - 0.012, rkz, 0.02, 0.02, 0.26); if (q >= 1 && i < 6 && i % 2 === 0) for (const s of [-1, 1]) F.beam('steelDark', [x, y0 + 0.04, rkz + s * 0.12], [x + bay, y0 + 0.3, rkz + s * 0.12], 0.008); }
+    PC.forEach((c, k) => { const pz = rkz + (k - 2.5) * 0.042; F.cylX('steel', 0, rky + 0.024, pz, 0.016, rx1 - rx0 + 0.06, 10, { c }); if (q >= 1) for (const fx of [-1.0, -0.35, 0.45, 1.05]) F.cylX('steelDark', fx, rky + 0.024, pz, 0.021, 0.008, 8, { c: 0x6b7480 }); });
+    for (const [lx, k] of [[-0.62, 1], [0.15, 4]]) { const pz = rkz + (k - 2.5) * 0.042; F.pipe('steel', [[lx - 0.1, rky + 0.024, pz], [lx - 0.1, rky + 0.14, pz], [lx + 0.1, rky + 0.14, pz], [lx + 0.1, rky + 0.024, pz]], 0.016, { c: PC[k] }); }
+    for (const x of [-1.05, -0.65, -0.25, 0.15]) { P.pump(F, x, y0, 0.12, 0); F.pipe('steel', [[x, rky + 0.01, rkz + 0.06], [x, y0 + 0.1, 0.06]], 0.012, { c: PC[(x * 7 | 0) & 3] }); }
+    // ---- LPG spheres on braced legs
+    for (const sx of [0.78, 1.2]) {
+      const r = 0.19, lg = 0.2, cyy = y0 + lg + r, sz = 0.52; F.sphere('alu', sx, cyy, sz, r, q >= 2 ? 20 : q ? 14 : 10, q >= 2 ? 10 : q ? 7 : 5, { c: 0xdfe5ec }); F.torus('paint', sx, cyy, sz, r + 0.003, 0.008, 4, seg, { c: 0xdc2626 });
+      const L = []; for (let i = 0; i < 8; i++) { const a = i * TAU / 8 + PI / 8, lx = sx + Math.cos(a) * r * 0.9, lz = sz + Math.sin(a) * r * 0.9; L.push([lx, lz]); F.box('steelDark', lx, y0, lz, 0.02, lg + r * 0.55, 0.02); }
+      F.torus('steelDark', sx, y0 + lg * 0.5, sz, r * 0.9, 0.006, 3, 14); if (q >= 1) for (let i = 0; i < 8; i++) { const a = L[i], b = L[(i + 1) % 8]; F.beam('steelDark', [a[0], y0 + 0.02, a[1]], [b[0], y0 + lg * 0.5, b[1]], 0.007); }
+      F.cyl('grating', sx, cyy + r - 0.004, sz, 0.05, 0.05, 0.012, 12); F.cyl('steel', sx + 0.02, cyy + r, sz, 0.012, 0.012, 0.06, 8, { c: 0xc2c9d3 }); F.cyl('steel', sx, y0 + lg - 0.04, sz, 0.02, 0.02, 0.06, 8, { c: 0xaab3bf });
+    }
+    F.pipe('steel', [[0.78, y0 + 0.2, 0.52], [0.78, y0 + 0.08, 0.3], [0.78, y0 + 0.08, 0.04]], 0.014, { c: PC[0] }); F.pipe('steel', [[1.2, y0 + 0.2, 0.52], [1.2, y0 + 0.08, 0.3], [0.78, y0 + 0.08, 0.3]], 0.014, { c: PC[0] });
+    // ---- air-cooled exchangers, control room, product bullet, product tank
+    for (const fx of [-0.98]) { for (const sx of [-1, 1]) for (const sz of [-1, 1]) F.box('steelDark', fx + sx * 0.23, y0, 0.5 + sz * 0.11, 0.022, 0.22, 0.022); F.box('steel', fx, y0 + 0.22, 0.5, 0.52, 0.05, 0.28, { c: 0xaeb7c3, bev: 0.006 }); for (let i = -1; i <= 1; i++) fan(F, fx + i * 0.17, y0 + 0.27, 0.5, 0.07, i); for (let i = 0; i < 7; i++) F.box('steelDark', fx - 0.24 + i * 0.08, y0 + 0.175, 0.5, 0.008, 0.045, 0.285); }
+    const cr = P.shed(F, -1.15, y0, 0.8, 0.44, 0.24, 0.2, 0xdfe5ec); P.windows(F, -1.15, y0 + 0.07, 0.924, 0.36, 0.08, 4, 0); P.door(F, -0.98, y0, 0.923, 0.07, 0.13, 0, 0x2f6f9f); P.hvac(F, -1.28, cr, 0.8, 0.12, 0.1, 0.06, 0); F.box('lamp', -1.15, y0 + 0.193, 0.925, 0.36, 0.006, 0.01);
+    P.hVessel(F, -0.4, y0, 0.78, 0.56, 0.075, 0xdfe5ec, 0); P.tank(F, 0.25, y0, 0.66, 0.22, 0.3, { roof: 'cone', c: 0xe6e9ee });
+    P.mast(F, -1.38, 0.2, 0.55, PI); P.mast(F, 1.38, 0.2, 0.55, PI); P.lamp(F, 0.45, 0.9, 0.4, PI);
+  });
+
+  // ------------------------------------------------------------------ chemical complex: reactor tower with agitators, packed columns, tank farm, tanker bay, process building
+  reg('chemical_plant', 3, 2, F => {
+    const y0 = P.slab(F, 3, 2, { drains: [[0.0, 0.2], [1.05, 0.2]] }), q = F.q, seg = q >= 2 ? 26 : q ? 18 : 12;
+    // ---- process building at the back (windows band, roof equipment)
+    const hy = P.hall(F, -0.75, -0.66, 1.3, 0.42, 0.34, { c: 0xe6e9ee, trim: 0x2a9d8f, mat: 'panel' }); F.box('concrete', -0.75, hy, -0.66, 1.32, 0.018, 0.44, { c: 0x9aa1ab }); F.box('panel', -0.62, hy + 0.018, -0.7, 0.9, 0.075, 0.16, { c: 0xdfe5ec, bev: 0.008 }); F.box('glassTint', -0.62, hy + 0.04, -0.618, 0.84, 0.032, 0.004); F.box('steelDark', -0.62, hy + 0.093, -0.7, 0.94, 0.016, 0.2, { bev: 0.006 }); P.windows(F, -0.75, y0 + 0.1, -0.446, 1.0, 0.1, 6, 0); P.door(F, -0.1, y0, -0.445, 0.1, 0.17, 0, 0x2a9d8f);
+    P.hvac(F, -1.2, hy + 0.018, -0.66, 0.16, 0.14, 0.07, 0); P.hvac(F, -0.3, hy + 0.018, -0.78, 0.14, 0.1, 0.06, 0); F.cyl('steel', -0.2, hy + 0.018, -0.62, 0.06, 0.06, 0.25, 14, { c: 0xdfe5ec }); F.cone('steel', -0.2, hy + 0.268, -0.62, 0.06, 0.08, 14, { c: 0xc2c9d3 }); F.pipe('steel', [[-0.2, hy + 0.15, -0.62], [-0.3, hy + 0.15, -0.62], [-0.36, hy + 0.1, -0.7]], 0.03, { c: 0xaab3bf }); F.emitter(-0.2, hy + 0.36, -0.62, 0.08, true);
+    for (const x of [-1.3, -1.0]) { F.cyl('steel', x, hy + 0.018, -0.78, 0.022, 0.022, 0.08, 8, { c: 0xaab3bf }); F.cyl('steelDark', x, hy + 0.098, -0.78, 0.03, 0.03, 0.01, 8); }
+    // ---- reactor tower: steel frame, two grating floors, three glass-lined reactors with agitator drives
+    const tx = 0.55, tz = -0.45, tw = 0.9, td = 0.42, fh = [0.32, 0.64];
+    for (const sx of [-1, 0, 1]) for (const sz of [-1, 1]) F.box('steelDark', tx + sx * tw / 2, y0, tz + sz * td / 2, 0.035, 0.82, 0.035, { bev: 0.004 });
+    for (const y of fh) { P.platform(F, tx, y0 + y, tz, tw + 0.02, td + 0.02, { c: 0xe6b422 }); for (const sx of [-1, 1]) F.box('steelDark', tx + sx * tw / 2, y0 + y - 0.03, tz, 0.02, 0.03, td); }
+    if (q >= 1) for (const s of [-1, 1]) for (let i = 0; i < 2; i++) { F.beam('steelDark', [tx - tw / 2 + i * tw / 2, y0 + 0.04, tz + s * td / 2], [tx + i * tw / 2, y0 + fh[0] - 0.04, tz + s * td / 2], 0.012); F.beam('steelDark', [tx + i * tw / 2, y0 + fh[0] + 0.02, tz + s * td / 2], [tx - tw / 2 + (i + 1) * tw / 2, y0 + fh[1] - 0.04, tz + s * td / 2], 0.012); }
+    [0x1f9d8f, 0x2f6fbf, 0x1f9d8f].forEach((c, i) => {
+      const rx = tx - 0.3 + i * 0.3, ry = y0 + fh[0] + 0.016;
+      F.cyl('paint', rx, ry, tz, 0.105, 0.105, 0.22, seg, { c }); F.sphere('paint', rx, ry + 0.22, tz, 0.105, seg, 10, { dome: true, sy: 0.55, c }); F.sphere('paint', rx, ry, tz, 0.105, seg, 10, { dome: true, sy: -0.4, c: 0x1c6a60 });
+      F.torus('steel', rx, ry + 0.07, tz, 0.108, 0.008, 4, seg, { c: 0xaab3bf }); F.torus('steel', rx, ry + 0.2, tz, 0.108, 0.008, 4, seg, { c: 0xaab3bf }); for (let k = 0; k < 4; k++) { const a = k * PI / 2 + PI / 4; F.box('steelDark', rx + Math.cos(a) * 0.112, ry + 0.03, tz + Math.sin(a) * 0.112, 0.025, 0.1, 0.025, { ry: -a }); }
+      F.cyl('steelDark', rx, ry + 0.3, tz, 0.014, 0.014, 0.32, 8, { c: 0xaab3bf }); F.box('paint', rx, ry + 0.4, tz, 0.09, 0.08, 0.09, { c: 0x2563eb, bev: 0.01 }); F.cyl('paint', rx, ry + 0.48, tz, 0.035, 0.04, 0.05, 12, { c: 0x2563eb }); F.box('steelDark', rx, ry + 0.3, tz, 0.07, 0.014, 0.014);
+      F.cyl('steel', rx + 0.06, ry + 0.3, tz + 0.06, 0.024, 0.024, 0.02, 10, { c: 0xdfe5ec }); F.cyl('glassTint', rx + 0.06, ry + 0.32, tz + 0.06, 0.02, 0.02, 0.005, 10);
+    });
+    F.box('steelDark', tx + 0.15, y0 + fh[1] + 0.016, tz - 0.12, 0.1, 0.012, 0.05); P.valve(F, tx - 0.35, y0 + fh[1] + 0.016, tz + 0.12, 0.04, 0);
+    // ---- packed columns + scrubber stack
+    for (const [x, z, r, h] of [[1.2, -0.4, 0.09, 1.0], [1.2, -0.7, 0.07, 0.8]]) { F.lathe('alu', x, y0, z, [[r, 0], [r, h], [r * 0.6, h + 0.06], [0, h + 0.09]], seg, { c: 0xe6e9ee, tile: 1.5 }); for (let i = 1; i < 5; i++) F.torus('steel', x, y0 + h * i / 5, z, r + 0.004, 0.006, 4, seg, { c: 0xaab3bf }); P.ladder(F, x, y0, z + r + 0.003, h * 0.9, 0, true); ring(F, x, y0 + h * 0.62, z, r, seg); }
+    F.pipe('steel', [[1.2, y0 + 1.09, -0.4], [1.2, y0 + 1.2, -0.4], [1.2, y0 + 1.2, -0.7], [1.2, y0 + 0.89, -0.7]], 0.02, { c: PC[0] }); F.pipe('steel', [[1.2, y0 + 0.1, -0.31], [0.98, y0 + 0.1, -0.31], [0.98, y0 + 0.1, tz]], 0.018, { c: PC[3] }); F.emitter(1.2, y0 + 1.1, -0.4, 0.08, true);
+    // ---- tank farm with bund wall: acid / sulfur / water
+    const bz = 0.5, bx0 = 0.2, bx1 = 1.4;
+    F.box('concrete', (bx0 + bx1) / 2, y0, bz, bx1 - bx0, 0.012, 0.8, { c: 0x8a919b }); for (const [x, z, w, d] of [[(bx0 + bx1) / 2, bz - 0.4, bx1 - bx0, 0.03], [(bx0 + bx1) / 2, bz + 0.4, bx1 - bx0, 0.03], [bx0, bz, 0.03, 0.8], [bx1, bz, 0.03, 0.8]]) F.box('concrete', x, y0, z, w, 0.07, d, { c: 0xaab0b8, bev: 0.004 });
+    P.tank(F, 0.55, y0 + 0.012, 0.5, 0.17, 0.42, { roof: 'cone', c: 0xf2c230, rings: 3 }); P.tank(F, 0.97, y0 + 0.012, 0.5, 0.15, 0.34, { roof: 'cone', c: 0xdfe5ec, rings: 2 }); P.tank(F, 1.27, y0 + 0.012, 0.58, 0.1, 0.3, { roof: 'dome', c: 0x2f6fbf, rings: 2 });
+    for (const [x, z, y] of [[0.65, 0.5 + 0.17, 0.25], [1.05, 0.5 + 0.15, 0.2]]) { F.box('paint', x, y0 + y, z, 0.05, 0.05, 0.004, { c: 0xdc2626, rz: PI / 4 }); F.box('paint', x, y0 + y, z, 0.034, 0.034, 0.006, { c: 0xfff4c2, rz: PI / 4 }); }
+    // ---- tanker loading bay: canopy, tanker truck, arm, drums
+    P.canopy(F, -1.0, y0, 0.5, 0.48, 0.88, 0.42, 0xe6e9ee, 0x2a9d8f); P.truck(F, -1.0, y0, 0.5, 0, 0xf2f4f7, { load: 'tank' }); F.cyl('steel', -0.85, y0, 0.3, 0.012, 0.012, 0.4, 8, { c: 0xaab3bf }); F.pipe('steel', [[-0.85, y0 + 0.4, 0.3], [-0.92, y0 + 0.42, 0.3], [-0.98, y0 + 0.32, 0.3]], 0.011, { c: PC[2] }); P.barrels(F, -1.35, y0, 0.8, 6, 3); P.crate(F, -0.55, y0, 0.82, 0.1, 0.2, 0xf59e0b);
+    // ---- pipe rack linking building, tower and tanks + cooling cells
+    for (let i = 0; i < 4; i++) { const z = -0.2 + i * 0.28; for (const s of [-1, 1]) F.box('steelDark', 0.04 + s * 0.12, y0, z, 0.018, 0.3, 0.018); F.box('steelDark', 0.04, y0 + 0.288, z, 0.28, 0.018, 0.018); }
+    PC.slice(0, 4).forEach((c, k) => F.cylZ('steel', 0.04 + (k - 1.5) * 0.045, y0 + 0.316, 0.35, 0.014, 1.0, 10, { c }));
+    F.box('panel', 1.15, y0, -0.06, 0.5, 0.26, 0.26, { c: 0xaab3bf, bev: 0.008 }); for (const i of [-1, 1]) fan(F, 1.15 + i * 0.12, y0 + 0.26, -0.06, 0.08, i); F.emitter(1.15, y0 + 0.28, -0.06, 0.12, true);
+    P.mast(F, -1.4, 0.1, 0.55, PI); P.mast(F, 1.4, 0.2, 0.55, PI); P.lamp(F, 0.05, 0.9, 0.4, PI);
+  });
+})(typeof window !== 'undefined' ? window : globalThis);
+
+/* ---- models_proc3.js ---- */
+/* Processing buildings III: glass_furnace, ammonia_plant, magnet_sintering. Local frame: IN port +Z, OUT port -Z. */
+(function (root) {
+  'use strict';
+  const M = root.IEModels, P = root.IEParts, PI = Math.PI, TAU = PI * 2, reg = (t, w, d, f, v) => M.reg(t, w, d, f, v);
+  const PC = [0xe6b422, 0xd23b2b, 0x2a9d54, 0x3b82f6, 0xea6a1a, 0xaab3bf];
+  const ring = (F, x, y, z, r) => {
+    const R = r + 0.09, q = F.q, ts = q >= 2 ? 20 : q ? 14 : 10; F.cyl('grating', x, y, z, R, R, 0.014, ts, { tile: 0.5 }); F.torus('paint', x, y + 0.15, z, R, 0.007, 3, ts, { c: 0xe6b422 });
+    if (q >= 1) { F.torus('paint', x, y + 0.08, z, R, 0.005, 3, ts, { c: 0xe6b422 }); for (let i = 0; i < 6; i++) { const a = i * TAU / 6; F.box('paint', x + Math.cos(a) * R, y + 0.014, z + Math.sin(a) * R, 0.012, 0.14, 0.012, { c: 0xe6b422 }); } }
+  };
+  const fan = (F, x, y, z, r, ph) => { F.cyl('steelDark', x, y, z, r, r, 0.012, 14); F.torus('steel', x, y + 0.012, z, r, 0.006, 3, 14, { c: 0x9aa4b0 }); if (F.q >= 1) F.anim('fan', [x, y + 0.016, z], 'spin', S => { S.cyl('steelDark', 0, -0.006, 0, 0.012, 0.012, 0.014, 8); for (let b = 0; b < 4; b++) S.at(0, 0, 0, b * PI / 2, s => s.box('alu', r * 0.52, 0, 0, r * 0.84, 0.003, r * 0.3, { c: 0xdfe5ec })); }, { axis: 'y', speed: 7, phase: ph || 0 }); };
+  const hopperSilo = (F, x, y, z, r, h, c) => { // silo on four legs with a conical hopper
+    for (let i = 0; i < 4; i++) { const a = i * PI / 2 + PI / 4; F.box('steelDark', x + Math.cos(a) * r * 0.85, y, z + Math.sin(a) * r * 0.85, 0.02, 0.2, 0.02); }
+    F.cyl('alu', x, y + 0.2, z, r, 0.03, 0.12, 14, { c }); F.cyl('alu', x, y + 0.32, z, r, r, h, F.q >= 2 ? 22 : 14, { c, tile: 1.5 }); F.cone('alu', x, y + 0.32 + h, z, r * 1.02, 0.08, F.q >= 2 ? 22 : 14, { c }); F.torus('steel', x, y + 0.32 + h * 0.5, z, r + 0.004, 0.006, 3, 16, { c: 0x9aa4b0 });
+    P.ladder(F, x, y + 0.2, z + r + 0.005, h + 0.12, 0, false);
+  };
+
+  // ------------------------------------------------------------------ float glass furnace: batch house, regenerative melter, tin bath, lehr, cutting line and glass racks
+  reg('glass_furnace', 2, 2, F => {
+    const y0 = P.slab(F, 2, 2, { drains: [[0.7, 0.55], [-0.75, 0.2]] }), q = F.q, seg = q >= 2 ? 24 : q ? 16 : 10;
+    // batch house (IN side) with two silos and a dust collector
+    const bh = P.hall(F, 0.0, 0.72, 0.62, 0.4, 0.4, { c: 0xb8c4d2, trim: 0xe6b422 }); F.box('steelDark', 0, bh, 0.72, 0.66, 0.02, 0.44, { bev: 0.006 });
+    P.windows(F, -0.08, y0 + 0.12, 0.925, 0.36, 0.09, 3, 0); P.door(F, 0.2, y0, 0.925, 0.08, 0.15, 0, 0x2f6f9f);
+    for (const sx of [-1, 1]) P.tank(F, sx * 0.15, bh + 0.02, 0.7, 0.09, 0.36, { roof: 'cone', c: 0xf2f4f7, rings: 2, pipe: false });
+    F.pipe('steel', [[0, y0 + 0.3, 0.52], [0, y0 + 0.3, 0.44]], 0.035, { c: 0xaab3bf }); F.box('steelDark', 0, y0 + 0.08, 0.47, 0.26, 0.17, 0.12, { bev: 0.01 });
+    hopperSilo(F, -0.75, y0, 0.68, 0.09, 0.32, 0xdfe5ec); hopperSilo(F, -0.55, y0, 0.74, 0.08, 0.28, 0xe8d9b0); F.pipe('steel', [[-0.75, y0 + 0.24, 0.66], [-0.75, y0 + 0.16, 0.5], [-0.31, y0 + 0.16, 0.5]], 0.02, { c: 0xaab3bf });
+    // regenerative melter: refractory body, crown, buckstays, burner ports with gas manifold
+    const mz = 0.19;
+    F.box('steelDark', 0, y0, mz, 0.72, 0.05, 0.6, { bev: 0.008 }); F.box('brick', 0, y0 + 0.05, mz, 0.62, 0.24, 0.52, { c: 0xc4906a, bev: 0.012, tile: 0.8 }); F.box('brick', 0, y0 + 0.29, mz, 0.6, 0.06, 0.5, { c: 0xd2ac86, bev: 0.025 }); F.box('steelDark', 0, y0 + 0.35, mz, 0.56, 0.014, 0.46, { bev: 0.004 });
+    for (let i = 0; i < 6; i++) for (const s of [-1, 1]) F.box('steelDark', s * 0.318, y0 + 0.05, mz - 0.22 + i * 0.088, 0.014, 0.28, 0.02);
+    for (let i = 0; i < 4; i++) { const z = mz - 0.17 + i * 0.113; F.box('steelDark', 0.325, y0 + 0.14, z, 0.024, 0.08, 0.08); F.box('glowOrange', 0.339, y0 + 0.145, z, 0.004, 0.05, 0.05); F.cylX('steel', 0.37, y0 + 0.145, z, 0.01, 0.06, 6, { c: 0xe6b422 }); }
+    F.cylZ('steel', 0.4, y0 + 0.145, mz, 0.016, 0.52, 8, { c: 0xe6b422 }); P.valve(F, 0.4, y0 + 0.16, mz + 0.3, 0.04, 0); F.light(0.4, y0 + 0.16, mz, [1, 0.5, 0.18], 1.4);
+    F.box('brick', -0.56, y0, mz, 0.26, 0.52, 0.5, { c: 0xa86a4a, bev: 0.01 }); F.box('brick', -0.36, y0 + 0.08, mz, 0.12, 0.16, 0.4, { c: 0xb98660 }); for (let i = 0; i < 5; i++) F.box('steelDark', -0.56, y0, mz - 0.2 + i * 0.1, 0.275, 0.52, 0.012); F.box('steelDark', -0.56, y0 + 0.52, mz, 0.3, 0.018, 0.54, { bev: 0.006 });
+    P.stack(F, -0.78, y0, -0.64, 0.075, 0.05, 1.3, { plain: true, c: 0xb8bcc4, bands: 6 }); F.pipe('steel', [[-0.56, y0 + 0.54, mz], [-0.56, y0 + 0.72, mz], [-0.56, y0 + 0.72, -0.64], [-0.78, y0 + 0.72, -0.64]], 0.04, { c: 0xaab3bf }); F.cyl('steelDark', -0.56, y0 + 0.54, mz, 0.05, 0.05, 0.02, 12); F.cylZ('steel', -0.56, y0 + 0.72, -0.3, 0.052, 0.04, 12, { c: 0x8a95a3 });
+    P.ladder(F, 0.33, y0 + 0.05, mz + 0.3, 0.32, PI / 2, true);
+    // tin bath
+    const tz = -0.24; F.box('steel', 0, y0 + 0.02, tz, 0.5, 0.2, 0.3, { c: 0x8a95a3, bev: 0.01 }); F.box('steelDark', 0, y0 + 0.22, tz, 0.54, 0.014, 0.34, { bev: 0.004 });
+    for (const s of [-1, 1]) for (let i = 0; i < 3; i++) F.box('glowAmber', s * 0.252, y0 + 0.12, tz - 0.1 + i * 0.1, 0.004, 0.03, 0.04); for (let i = 0; i < 6; i++) F.box('paint', -0.2 + i * 0.08, y0 + 0.236, tz, 0.04, 0.03, 0.04, { c: 0x2563eb, bev: 0.004 });
+    F.pipe('steel', [[0.26, y0 + 0.1, tz + 0.1], [0.34, y0 + 0.1, tz + 0.1], [0.34, y0 + 0.1, 0.0]], 0.012, { c: PC[3] }); F.light(0.0, y0 + 0.14, tz, [1, 0.7, 0.3], 0.6);
+    // annealing lehr with cooling fans and exhaust vents
+    const lz = -0.64; F.box('steel', 0, y0 + 0.02, lz, 0.5, 0.15, 0.38, { c: 0xaeb7c3, bev: 0.01 }); F.box('steelDark', 0, y0 + 0.17, lz, 0.52, 0.012, 0.4); for (let i = 0; i < 5; i++) F.box('steelDark', 0, y0 + 0.02, lz - 0.16 + i * 0.08, 0.51, 0.15, 0.01);
+    for (const s of [-1, 1]) fan(F, s * 0.13, y0 + 0.182, lz, 0.06, s); for (let i = 0; i < 4; i++) { F.cyl('steel', -0.18 + i * 0.12, y0 + 0.18, lz + 0.14, 0.018, 0.018, 0.07, 8, { c: 0xaab3bf }); F.cyl('steelDark', -0.18 + i * 0.12, y0 + 0.25, lz + 0.14, 0.024, 0.024, 0.01, 8); }
+    // exit roller table + cutting bridge + glass sheet
+    for (let i = 0; i < 6; i++) F.cylZ('steel', 0.3 + i * 0.07, y0 + 0.075, lz, 0.012, 0.32, 8, { c: 0xc2c9d3 }); F.box('steelDark', 0.5, y0 + 0.03, lz, 0.5, 0.03, 0.34); F.box('glassTint', 0.5, y0 + 0.087, lz, 0.38, 0.006, 0.3);
+    for (const s of [-1, 1]) F.box('steelDark', 0.5, y0 + 0.03, lz + s * 0.19, 0.04, 0.17, 0.02); F.box('steelDark', 0.5, y0 + 0.2, lz, 0.04, 0.03, 0.4); F.box('steel', 0.5, y0 + 0.125, lz + 0.04, 0.02, 0.08, 0.02, { c: 0xc2c9d3 });
+    // glass racks (A-frames with sheets), cullet skip, forklift, power
+    const rack = (x, z) => { F.box('steelDark', x, y0, z, 0.3, 0.025, 0.2, { bev: 0.004 }); for (const s of [-1, 1]) F.box('steelDark', x + s * 0.14, y0 + 0.025, z, 0.012, 0.19, 0.2); for (let i = 0; i < 9; i++) F.box('glassTint', x - 0.115 + i * 0.029, y0 + 0.03, z, 0.012, 0.17, 0.18, { rz: (i - 4) * 0.012 }); };
+    rack(0.72, -0.2); rack(0.72, -0.82); F.box('steelDark', 0.72, y0, -0.51, 0.3, 0.012, 0.14, { c: 0x6f7886 });
+    P.container(F, 0.62, y0, 0.15, 0.0, 0x9a4a2a, 0.55); P.forklift(F, 0.75, y0, 0.66, PI * 0.9, 0xf2b705); P.transformer(F, 0.72, y0, 0.3, PI / 2);
+    P.mast(F, 0.9, 0.9, 0.55, PI); P.mast(F, -0.9, -0.88, 0.55, 0); P.lamp(F, 0.3, 0.9, 0.4, PI);
+  });
+
+  // ------------------------------------------------------------------ Haber-Bosch ammonia plant: reformer, compressor hall, synthesis loop, CO2 columns, refrigerated NH3 tank, flare
+  reg('ammonia_plant', 3, 2, F => {
+    const y0 = P.slab(F, 3, 2, { drains: [[0.3, 0.1], [-1.1, 0.8]] }), q = F.q, seg = q >= 2 ? 24 : q ? 16 : 10;
+    // primary reformer furnace (burner peepholes, roof penthouses, steam drum, flue stack)
+    const fx = -0.92, fz = -0.5;
+    F.box('concrete', fx, y0, fz, 0.7, 0.04, 0.56, { c: 0x8a919b }); F.box('steel', fx, y0 + 0.04, fz, 0.62, 0.5, 0.48, { c: 0xc9d0d9, bev: 0.012 }); F.box('steelDark', fx, y0 + 0.54, fz, 0.66, 0.02, 0.52, { bev: 0.005 });
+    for (let i = 0; i < 7; i++) F.box('steelDark', fx - 0.3 + i * 0.1, y0 + 0.04, fz + 0.243, 0.014, 0.5, 0.012); for (const y of [0.18, 0.34]) F.box('steelDark', fx, y0 + y, fz + 0.243, 0.62, 0.012, 0.012);
+    for (let r = 0; r < 2; r++) for (let i = 0; i < 4; i++) { F.box('steelDark', fx - 0.225 + i * 0.15, y0 + 0.11 + r * 0.16, fz + 0.246, 0.05, 0.05, 0.008); F.box('glowOrange', fx - 0.225 + i * 0.15, y0 + 0.116 + r * 0.16, fz + 0.252, 0.034, 0.034, 0.004); }
+    for (let r = 0; r < 2; r++) for (let i = 0; i < 3; i++) { const px = fx - 0.18 + i * 0.18, pz = fz - 0.09 + r * 0.18; F.box('steel', px, y0 + 0.56, pz, 0.08, 0.05, 0.08, { c: 0xdfe5ec, bev: 0.006 }); F.cyl('steelDark', px, y0 + 0.61, pz, 0.014, 0.014, 0.04, 8); }
+    F.cylX('alu', fx, y0 + 0.69, fz - 0.06, 0.075, 0.5, seg, { c: 0xdfe5ec }); for (const s of [-1, 1]) { F.sphere('alu', fx + s * 0.25, y0 + 0.69, fz - 0.06, 0.075, 12, 6, { c: 0xdfe5ec }); F.box('steelDark', fx + s * 0.14, y0 + 0.56, fz - 0.06, 0.03, 0.06, 0.1); } F.pipe('steel', [[fx + 0.1, y0 + 0.62, fz - 0.06], [fx + 0.1, y0 + 0.57, fz - 0.06]], 0.02, { c: PC[3] });
+    F.box('steel', fx + 0.5, y0, fz - 0.05, 0.22, 0.34, 0.3, { c: 0xaab3bf, bev: 0.008 }); P.stack(F, fx + 0.5, y0 + 0.34, fz - 0.05, 0.06, 0.04, 0.95, { plain: true, c: 0xb8bcc4, bands: 5 }); F.light(fx, y0 + 0.14, fz + 0.3, [1, 0.5, 0.18], 1.4);
+    P.ladder(F, fx - 0.34, y0 + 0.04, fz + 0.1, 0.5, PI / 2 * -1, true);
+    // compressor hall: open-front shed with two motor-driven compressor trains
+    const cx = -0.18, cz = -0.58, cw = 0.84, cd = 0.4, ch = 0.36;
+    F.box('concrete', cx, y0, cz, cw + 0.04, 0.03, cd + 0.04, { c: 0x9aa1ab }); for (const sx of [-1, 1]) for (const sz of [-1, 1]) F.box('steelDark', cx + sx * (cw / 2 - 0.015), y0 + 0.03, cz + sz * (cd / 2 - 0.015), 0.03, ch, 0.03, { bev: 0.004 });
+    F.box('corrug', cx, y0 + 0.03, cz - cd / 2 + 0.008, cw, ch, 0.016, { c: 0xdfe5ec, tile: 1 }); for (const s of [-1, 1]) F.box('corrug', cx + s * (cw / 2 - 0.008), y0 + 0.03, cz, 0.016, ch, cd, { c: 0xdfe5ec, tile: 1 });
+    F.box('steelDark', cx, y0 + 0.03 + ch, cz, cw + 0.05, 0.025, cd + 0.05, { bev: 0.008 }); F.box('paint', cx, y0 + 0.055 + ch, cz, cw + 0.06, 0.012, cd + 0.06, { c: 0x2a9d54 }); F.box('steelDark', cx, y0 + 0.28, cz, cw - 0.04, 0.02, 0.02); F.box('steelDark', cx, y0 + 0.285, cz + 0.05, 0.02, 0.02, 0.2);
+    for (const k of [-1, 1]) { const mx = cx + k * 0.2, zz = cz + 0.0; F.box('steelDark', mx, y0 + 0.03, zz, 0.3, 0.03, 0.2, { c: 0x4a525e }); F.cylX('paint', mx - 0.06, y0 + 0.11, zz, 0.07, 0.15, 16, { c: 0x2563eb }); F.box('paint', mx - 0.06, y0 + 0.03, zz, 0.15, 0.05, 0.1, { c: 0x2563eb, bev: 0.008 }); F.cylX('alu', mx + 0.09, y0 + 0.11, zz, 0.06, 0.12, 16, { c: 0xb8c0cc }); F.cylX('steel', mx + 0.025, y0 + 0.11, zz, 0.015, 0.03, 8, { c: 0xc2c9d3 }); F.pipe('steel', [[mx + 0.09, y0 + 0.17, zz], [mx + 0.09, y0 + 0.3, zz + 0.08], [mx + 0.2, y0 + 0.3, zz + 0.18]], 0.022, { c: 0xaab3bf }); for (let b = 0; b < 4; b++) F.cyl('steelDark', mx + 0.07 + b * 0.012, y0 + 0.17, zz - 0.06, 0.008, 0.008, 0.014, 6); }
+    F.light(cx, y0 + 0.3, cz + 0.1, [1, 0.95, 0.8], 0.7);
+    // synthesis loop: tall converters in a braced frame with platforms, exchangers, lagged transfer lines
+    const sx0 = 0.82, sz0 = -0.55;
+    for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) F.box('steelDark', sx0 + sx * 0.22, y0, sz0 + sz * 0.13, 0.03, 0.95, 0.03, { bev: 0.004 });
+    for (const y of [0.34, 0.64, 0.94]) { P.platform(F, sx0, y0 + y, sz0, 0.5, 0.3, {}); } if (q >= 1) for (const s of [-1, 1]) { F.beam('steelDark', [sx0 - 0.22, y0 + 0.04, sz0 + s * 0.13], [sx0 + 0.22, y0 + 0.32, sz0 + s * 0.13], 0.01); F.beam('steelDark', [sx0 + 0.22, y0 + 0.36, sz0 + s * 0.13], [sx0 - 0.22, y0 + 0.62, sz0 + s * 0.13], 0.01); }
+    F.lathe('alu', sx0 - 0.1, y0, sz0, [[0.07, 0], [0.07, 0.95], [0.04, 1.02], [0, 1.05]], seg, { c: 0xdfe5ec, tile: 1.5 }); F.lathe('alu', sx0 + 0.1, y0, sz0, [[0.055, 0], [0.055, 0.72], [0.035, 0.78], [0, 0.8]], seg, { c: 0xdfe5ec, tile: 1.5 });
+    for (const [x, hh, r] of [[sx0 - 0.1, 0.95, 0.07], [sx0 + 0.1, 0.72, 0.055]]) for (const y of [0.12, 0.34, 0.64]) if (y < hh) F.cyl('steelDark', x, y0 + y - 0.015, sz0, r + 0.012, r + 0.012, 0.03, 14, { c: 0x4a525e });
+    F.cylX('alu', sx0, y0 + 0.07, sz0 + 0.3, 0.05, 0.4, 16, { c: 0xdfe5ec }); F.cylX('alu', sx0, y0 + 0.07, sz0 + 0.42, 0.05, 0.4, 16, { c: 0xdfe5ec }); F.pipe('steel', [[sx0 - 0.1, y0 + 0.1, sz0 + 0.07], [sx0 - 0.1, y0 + 0.1, sz0 + 0.3]], 0.03, { c: 0xdfe5ec }); F.pipe('steel', [[sx0 + 0.1, y0 + 0.66, sz0], [sx0 + 0.1, y0 + 0.9, sz0 + 0.0], [sx0 - 0.1, y0 + 0.9, sz0]], 0.026, { c: 0xdfe5ec }); P.ladder(F, sx0 - 0.22, y0, sz0 + 0.17, 0.95, 0, true); F.pipe('steel', [[sx0, y0 + 0.07, sz0 + 0.42], [sx0 + 0.26, y0 + 0.07, sz0 + 0.42]], 0.026, { c: 0xdfe5ec });
+    // flare stack
+    F.cyl('steel', 1.36, y0, -0.85, 0.034, 0.042, 0.1, 10, { c: 0xaab3bf }); F.cyl('steel', 1.36, y0 + 0.1, -0.85, 0.016, 0.03, 1.25, 8, { c: 0xaab3bf }); F.cyl('steelDark', 1.36, y0 + 1.34, -0.85, 0.03, 0.022, 0.04, 8); P.flame(F, 1.36, y0 + 1.38, -0.85, 1.4, 'orange');
+    // CO2 absorber + stripper columns, pipe rack, cold box
+    F.lathe('alu', -0.55, y0, 0.45, [[0.1, 0], [0.1, 1.0], [0.06, 1.07], [0, 1.1]], seg, { c: 0xe6e9ee, tile: 1.5 }); F.lathe('alu', -0.22, y0, 0.45, [[0.08, 0], [0.08, 0.8], [0.05, 0.86], [0, 0.88]], seg, { c: 0xe6e9ee, tile: 1.5 });
+    for (const [x, h, r] of [[-0.55, 1.0, 0.1], [-0.22, 0.8, 0.08]]) { for (const k of [0.3, 0.55, 0.8]) F.torus('steel', x, y0 + h * k, 0.45, r + 0.004, 0.006, 3, 16, { c: 0xaab3bf }); P.ladder(F, x, y0, 0.45 + r + 0.003, h * 0.9, 0, true); } ring(F, -0.55, y0 + 0.55, 0.45, 0.1); ring(F, -0.22, y0 + 0.45, 0.45, 0.08);
+    F.pipe('steel', [[-0.55, y0 + 1.07, 0.45], [-0.55, y0 + 1.22, 0.45], [-0.22, y0 + 1.22, 0.45], [-0.22, y0 + 0.86, 0.45]], 0.02, { c: PC[0] }); F.pipe('steel', [[-0.55, y0 + 0.1, 0.35], [-0.38, y0 + 0.1, 0.35], [-0.38, y0 + 0.1, 0.45], [-0.3, y0 + 0.1, 0.45]], 0.018, { c: PC[3] });
+    F.box('steelDark', -1.2, y0, 0.5, 0.26, 0.05, 0.26); F.box('paint', -1.2, y0 + 0.05, 0.5, 0.22, 0.95, 0.22, { c: 0xeef1f5, bev: 0.01 }); for (const y of [0.25, 0.5, 0.75]) F.box('steelDark', -1.2, y0 + y, 0.5, 0.235, 0.012, 0.235); F.pipe('steel', [[-1.2, y0 + 0.2, 0.62], [-1.2, y0 + 0.1, 0.8], [-0.95, y0 + 0.1, 0.8]], 0.022, { c: 0xeef1f5 }); P.ladder(F, -1.2, y0 + 0.05, 0.615, 0.9, 0, true);
+    P.pump(F, -0.8, y0, 0.8, 0); P.pump(F, -0.65, y0, 0.8, 0); F.pipe('steel', [[-0.8, y0 + 0.07, 0.74], [-0.8, y0 + 0.07, 0.35], [-0.55, y0 + 0.07, 0.35]], 0.016, { c: PC[3] });
+    // refrigerated ammonia storage tank + bullets + control room
+    P.tank(F, 0.62, y0, 0.52, 0.33, 0.4, { roof: 'dome', c: 0xf4f6f9, rings: 3 }); F.torus('paint', 0.62, y0 + 0.28, 0.52, 0.335, 0.012, 3, 28, { c: 0x2a9d54 }); F.box('paint', 0.62 + 0.14, y0 + 0.24, 0.52 + 0.328, 0.06, 0.06, 0.004, { c: 0x2a6bd4, rz: PI / 4 }); F.box('paint', 0.62 + 0.14, y0 + 0.24, 0.52 + 0.331, 0.04, 0.04, 0.004, { c: 0xf4f6f9, rz: PI / 4 });
+    P.hVessel(F, 1.12, y0, 0.78, 0.4, 0.07, 0xf4f6f9, 0); P.hVessel(F, 1.12, y0, 0.45, 0.4, 0.07, 0xf4f6f9, 0); F.pipe('steel', [[0.95, y0 + 0.26, 0.52], [1.0, y0 + 0.26, 0.55], [1.0, y0 + 0.2, 0.8]], 0.016, { c: PC[2] });
+    const cr = P.shed(F, -0.2, y0, 0.84, 0.46, 0.2, 0.2, 0xdfe5ec); P.windows(F, -0.2, y0 + 0.07, 0.941, 0.38, 0.08, 4, 0); P.hvac(F, -0.1, cr, 0.84, 0.14, 0.1, 0.06, 0);
+    // rack along the front of the compressor hall
+    for (let i = 0; i < 5; i++) { const x = -0.7 + i * 0.5; for (const s of [-1, 1]) F.box('steelDark', x, y0, 0.1 + s * 0.07, 0.016, 0.26, 0.016); F.box('steelDark', x, y0 + 0.245, 0.1, 0.016, 0.016, 0.16); }
+    PC.slice(0, 4).forEach((c, k) => F.cylX('steel', 0.5, y0 + 0.268, 0.1 + (k - 1.5) * 0.03, 0.011, 2.0, 8, { c }));
+    P.mast(F, -1.38, 0.1, 0.55, PI); P.mast(F, 1.38, 0.2, 0.55, PI); P.lamp(F, 0.1, 0.9, 0.4, PI);
+  });
+
+  // ------------------------------------------------------------------ rare-earth magnet sintering: vacuum furnaces, jet mill + press, magnetiser coil, dewar, finished-magnet pallets
+  reg('magnet_sintering', 3, 2, F => {
+    const y0 = P.slab(F, 3, 2, { drains: [[0.9, 0.0], [-0.2, 0.9]] }), q = F.q, seg = q >= 2 ? 24 : q ? 16 : 10;
+    // processing hall (left) with sawtooth roof and skylights
+    const hx = -0.9, hz = -0.3, hw = 1.0, hd = 1.2, hy = P.hall(F, hx, hz, hw, hd, 0.4, { c: 0xb8c4d2, trim: 0xb87333 });
+    for (let i = 0; i < 4; i++) { const z = hz - 0.45 + i * 0.3; F.box('steelDark', hx, hy, z, hw + 0.04, 0.02, 0.3, { bev: 0.004 }); F.box('panel', hx, hy + 0.02, z - 0.14, hw + 0.02, 0.1, 0.02, { c: 0xdfe5ec }); F.box('glassTint', hx, hy + 0.02, z + 0.02, hw - 0.04, 0.09, 0.006, { rx: -0.0 }); F.box('steelDark', hx, hy + 0.115, z - 0.14, hw + 0.04, 0.012, 0.04); }
+    P.windows(F, hx, y0 + 0.12, hz + hd / 2 + 0.004, 0.8, 0.1, 5, 0); P.roller(F, hx - 0.35, y0 + 0.05, hz + hd / 2 + 0.004, 0.3, 0.26, 0, 0xb9c2cd); P.hvac(F, -1.2, hy + 0.0, hz + 0.3, 0.2, 0.14, 0.08, 0); P.hvac(F, -0.9, hy + 0.0, hz + 0.3, 0.2, 0.14, 0.08, 0);
+    P.stack(F, -1.3, y0, -0.82, 0.05, 0.035, 0.85, { plain: true, c: 0xb8bcc4, bands: 4, steam: true }); F.pipe('steel', [[-1.1, hy + 0.12, -0.55], [-1.3, hy + 0.12, -0.55], [-1.3, hy + 0.12, -0.8]], 0.025, { c: 0xaab3bf });
+    // vacuum sintering furnaces (door side +Z), water manifolds, pumps
+    const fz = -0.35;
+    for (let k = 0; k < 3; k++) {
+      const x = -0.12 + k * 0.4, yc = y0 + 0.26, len = 0.5;
+      for (const s of [-1, 1]) F.box('steelDark', x + s * 0.1, y0, fz, 0.03, 0.14, 0.4, { bev: 0.004 }); F.box('steelDark', x, y0 + 0.02, fz, 0.26, 0.05, 0.46);
+      F.cylZ('steel', x, yc, fz, 0.14, len, seg, { c: 0x9fb0c4 }); for (const dz of [-0.17, 0.0, 0.17]) F.torus('steelDark', x, yc, fz + dz, 0.143, 0.01, 3, seg, { c: 0x4a525e, rx: PI / 2 });
+      F.sphere('steel', x, yc, fz - len / 2, 0.14, seg, 8, { c: 0x9fb0c4, sy: 0.35 }); F.cylZ('steelDark', x, yc, fz + len / 2 + 0.015, 0.152, 0.03, seg, { c: 0x4a525e }); F.torus('steel', x, yc, fz + len / 2 + 0.031, 0.12, 0.008, 3, 18, { c: 0xc2c9d3, rx: PI / 2 }); F.cylZ('glowOrange', x, yc, fz + len / 2 + 0.034, 0.032, 0.006, 10); F.cylZ('steel', x, yc, fz + len / 2 + 0.032, 0.045, 0.004, 10, { c: 0xdfe5ec });
+      F.box('steelDark', x + 0.13, yc - 0.03, fz + len / 2 + 0.03, 0.03, 0.06, 0.02); F.box('paint', x - 0.06, yc + 0.0, fz + len / 2 + 0.045, 0.06, 0.012, 0.012, { c: 0xc2c9d3 }); F.box('paint', x, yc - 0.06, fz + len / 2 + 0.045, 0.012, 0.06, 0.012, { c: 0xc2c9d3 });
+      F.cylX('paint', x, yc + 0.17, fz + 0.12, 0.018, 0.2, 8, { c: 0x3b82f6 }); F.cylX('paint', x, yc + 0.17, fz + 0.16, 0.018, 0.2, 8, { c: 0xd23b2b }); F.pipe('steel', [[x + 0.1, yc + 0.17, fz + 0.14], [x + 0.18, yc + 0.17, fz + 0.14], [x + 0.18, y0 + 0.05, fz + 0.14]], 0.011, { c: 0x3b82f6 });
+      F.cylX('paint', x + 0.0, y0 + 0.07, fz - 0.4, 0.05, 0.14, 12, { c: 0x2563eb }); F.box('paint', x + 0.13, y0, fz - 0.4, 0.1, 0.08, 0.1, { c: 0x1d4ed8, bev: 0.008 }); F.pipe('steel', [[x, y0 + 0.12, fz - 0.4], [x, y0 + 0.3, fz - 0.34]], 0.014, { c: 0xaab3bf }); F.light(x, yc, fz + 0.3, [1, 0.5, 0.18], 0.5);
+    }
+    F.box('steelDark', 0.28, y0, fz + 0.46, 0.2, 0.2, 0.12, { c: 0x3a4250, bev: 0.008 }); F.box('glassTint', 0.28, y0 + 0.12, fz + 0.524, 0.14, 0.05, 0.004); F.box('paint', 0.5, y0, fz + 0.46, 0.14, 0.24, 0.12, { c: 0xc9d0d9, bev: 0.008 }); for (let i = 0; i < 4; i++) F.box('lamp', 0.5, y0 + 0.07 + i * 0.045, fz + 0.522, 0.02, 0.01, 0.004);
+    // jet mill cyclone on frame, bag filter, press
+    const jx = 1.15, jz = -0.5;
+    for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) F.box('steelDark', jx + sx * 0.12, y0, jz + sz * 0.12, 0.025, 0.55, 0.025); P.platform(F, jx, y0 + 0.55, jz, 0.34, 0.34, {});
+    F.cyl('alu', jx, y0 + 0.62, jz, 0.11, 0.11, 0.2, seg, { c: 0xc9d0d9, tile: 1.5 }); F.cone('alu', jx, y0 + 0.82, jz, 0.11, 0.08, seg, { c: 0xc9d0d9 }); F.cyl('alu', jx, y0 + 0.38, jz, 0.025, 0.11, 0.24, seg, { c: 0xc9d0d9 }); F.cyl('steelDark', jx, y0 + 0.3, jz, 0.04, 0.04, 0.08, 10); F.box('paint', jx + 0.0, y0 + 0.9, jz, 0.18, 0.2, 0.18, { c: 0xdfe5ec, bev: 0.01 }); F.pipe('steel', [[jx, y0 + 0.9, jz], [jx, y0 + 1.1, jz], [jx - 0.15, y0 + 1.1, jz], [jx - 0.15, y0 + 0.62, jz]], 0.018, { c: 0xaab3bf });
+    F.pipe('steel', [[jx + 0.11, y0 + 0.7, jz], [jx + 0.2, y0 + 0.7, jz], [jx + 0.2, y0 + 0.62, jz - 0.1]], 0.02, { c: 0xaab3bf }); P.ladder(F, jx - 0.17, y0, jz + 0.15, 0.55, 0, true);
+    const px = 1.12, pz = 0.12; F.box('steelDark', px, y0, pz, 0.34, 0.04, 0.26); for (const sx of [-1, 1]) for (const sz of [-1, 1]) F.cyl('steel', px + sx * 0.12, y0 + 0.04, pz + sz * 0.09, 0.012, 0.012, 0.3, 8, { c: 0xc2c9d3 }); F.box('paint', px, y0 + 0.34, pz, 0.3, 0.06, 0.22, { c: 0x2563eb, bev: 0.008 }); F.cyl('paint', px, y0 + 0.4, pz, 0.05, 0.05, 0.1, 14, { c: 0x2563eb }); F.box('steel', px, y0 + 0.17, pz, 0.14, 0.05, 0.1, { c: 0xdfe5ec }); F.box('paint', px + 0.2, y0, pz, 0.08, 0.2, 0.12, { c: 0xe6b422, bev: 0.008 });
+    // magnetiser coil with feed tray, argon dewar, finished-magnet pallets, power
+    const mx = 0.38, mzz = 0.72; F.box('steelDark', mx, y0, mzz, 0.5, 0.03, 0.22); F.torus('copper', mx, y0 + 0.2, mzz, 0.15, 0.045, 8, 22, { rx: PI / 2 }); F.torus('steelDark', mx, y0 + 0.2, mzz, 0.155, 0.05, 4, 16, { rx: PI / 2, c: 0x3a4250 }); for (const s of [-1, 1]) F.box('steelDark', mx + s * 0.1, y0 + 0.03, mzz, 0.03, 0.06, 0.2, { bev: 0.004 });
+    for (let i = 0; i < 8; i++) F.cylZ('steel', mx - 0.22 + i * 0.063, y0 + 0.07, mzz, 0.008, 0.16, 6, { c: 0xc2c9d3 }); F.box('steel', mx - 0.14, y0 + 0.075, mzz, 0.14, 0.03, 0.12, { c: 0x9aa4b0 }); for (let i = 0; i < 4; i++) F.box('steel', mx - 0.17 + i * 0.033, y0 + 0.105, mzz, 0.026, 0.02, 0.09, { c: i % 2 ? 0xe5c158 : 0xc2c9d3 });
+    F.box('paint', mx + 0.36, y0, mzz - 0.04, 0.16, 0.28, 0.12, { c: 0x2f6fbf, bev: 0.008 }); F.box('hazard', mx + 0.36, y0 + 0.28, mzz - 0.04, 0.16, 0.014, 0.12, { tile: 0.1 }); F.box('lamp', mx + 0.36, y0 + 0.18, mzz + 0.022, 0.1, 0.02, 0.004); F.pipe('steel', [[mx + 0.3, y0 + 0.2, mzz + 0.0], [mx + 0.15, y0 + 0.2, mzz]], 0.016, { c: 0xe5842a });
+    F.cyl('alu', -1.08, y0 + 0.1, 0.72, 0.13, 0.13, 0.4, seg, { c: 0xf4f6f9, tile: 1.5 }); F.sphere('alu', -1.08, y0 + 0.5, 0.72, 0.13, seg, 8, { dome: true, sy: 0.6, c: 0xf4f6f9 }); for (const sx of [-1, 1]) for (const sz of [-1, 1]) F.box('steelDark', -1.08 + sx * 0.1, y0, 0.72 + sz * 0.1, 0.022, 0.1, 0.022); F.torus('paint', -1.08, y0 + 0.3, 0.72, 0.134, 0.01, 3, 20, { c: 0x2a6bd4 });
+    for (let i = 0; i < 6; i++) F.box('alu', -0.84, y0 + 0.02, 0.58 + i * 0.03, 0.14, 0.07, 0.006, { c: 0xdfe5ec }); F.pipe('steel', [[-1.08, y0 + 0.1, 0.72 - 0.13], [-1.0, y0 + 0.06, 0.55], [-0.78, y0 + 0.06, 0.55], [-0.78, y0 + 0.12, 0.5]], 0.012, { c: 0xdfe5ec });
+    for (const [x, z] of [[-0.4, 0.72], [-0.58, 0.82]]) { P.pallet(F, x, y0, z, 0.2, 0.16); for (let a = 0; a < 3; a++) for (let b = 0; b < 4; b++) F.box('steel', x - 0.07 + b * 0.047, y0 + 0.03 + a * 0.032, z, 0.04, 0.028, 0.12, { c: (a + b) % 3 ? 0xc2c9d3 : 0xd9b650, bev: 0.003 }); }
+    P.transformer(F, 1.2, y0, 0.62, PI / 2); P.mast(F, 1.38, 0.9, 0.55, PI); P.mast(F, -1.38, 0.9, 0.55, PI); P.lamp(F, 0.0, 0.9, 0.4, PI);
+  });
+})(typeof window !== 'undefined' ? window : globalThis);
+
+/* ---- models_work1.js ---- */
+/* Workforce I: worker_cottage (1x1), worker_housing (2x2, container crew quarters), apartment_tower (2x2). No ports. Facing +Z = street side. */
+(function (root) {
+  'use strict';
+  const M = root.IEModels, P = root.IEParts, PI = Math.PI, TAU = PI * 2, reg = (t, w, d, f, v) => M.reg(t, w, d, f, v);
+  const H = (a, b) => ((Math.imul(Math.round(a * 997) | 0, 73856093) ^ Math.imul(Math.round(b * 991) | 0, 19349663)) >>> 0) % 1000 / 1000;
+  // kerb + lawn base, returns top y
+  const lawn = (F, w, d, o) => { o = o || {}; const hw = w * 0.96, hd = d * 0.96; F.box('concrete', 0, 0, 0, hw, 0.06, hd, { c: o.kerb || 0xb4b9c1, bev: 0.018, tile: 2 }); F.box('foliage', 0, 0.06, 0, hw - 0.08, 0.014, hd - 0.08, { c: o.grass || 0x4f9a45, tile: 0.4 }); return 0.074; };
+  const hedge = (F, x, y, z, w, d, h, c) => F.box('foliage', x, y, z, w, h || 0.06, d, { c: c || 0x2f7a35, bev: 0.02, tile: 0.3 });
+  const tree = (F, x, y, z, s, k) => { s = s || 1; F.cyl('wood', x, y, z, 0.011 * s, 0.018 * s, 0.1 * s, 6); const cs = [0x3f8f3f, 0x4c9a40, 0x2f7a35, 0x5aa347];
+    if (k === 1) { for (let i = 0; i < 3; i++) F.cone('foliage', x, y + (0.07 + i * 0.075) * s, z, (0.1 - i * 0.026) * s, 0.13 * s, 8, { c: 0x2e7d3a }); } else { F.sphere('foliage', x, y + 0.17 * s, z, 0.11 * s, 9, 6, { c: cs[(k | 0) % 4] }); F.sphere('foliage', x + 0.06 * s, y + 0.12 * s, z + 0.03 * s, 0.075 * s, 7, 4, { c: cs[((k | 0) + 1) % 4] }); } };
+  const lamppost = (F, x, y, z, h) => { F.cyl('steelDark', x, y, z, 0.007, 0.011, h, 6); F.box('steelDark', x, y + h, z, 0.05, 0.009, 0.022, { bev: 0.003 }); F.box('lamp', x, y + h - 0.006, z, 0.04, 0.008, 0.016); };
+  const win = (F, x, y, z, w, h, sh, lit) => { F.box('paint', x, y, z, w + 0.03, h + 0.03, 0.012, { c: 0xf5f1e8 }); F.box(lit ? 'winLit' : 'glassTint', x, y + 0.015, z + 0.004, w, h, 0.008); if (F.q >= 1) { F.box('paint', x, y + h * 0.5 + 0.012, z + 0.01, 0.008, h, 0.006, { c: 0xf5f1e8 }); F.box('paint', x, y + h * 0.5 + 0.012, z + 0.01, w, 0.008, 0.006, { c: 0xf5f1e8 }); } F.box('paint', x, y - 0.005, z + 0.012, w + 0.05, 0.012, 0.026, { c: 0xeee7d8 }); if (sh != null) for (const s of [-1, 1]) F.box('paint', x + s * (w / 2 + 0.028), y, z + 0.004, 0.026, h + 0.03, 0.01, { c: sh }); };
+  const gableEnds = (F, mat, x, y, z, w, d, h, ry, c) => F.at(x, y, z, ry, f => { const hw = w / 2, hd = d / 2; f._triN(mat, [-hw, 0, -hd], [hw, 0, -hd], [0, h, -hd], [0, 0, -1], 1, { c }); f._triN(mat, [-hw, 0, hd], [0, h, hd], [hw, 0, hd], [0, 0, 1], 1, { c }); });
+  const car = (F, x, y, z, ry, col) => F.at(x, y, z, ry, f => { f.box('paint', 0, 0.012, 0, 0.1, 0.034, 0.21, { c: col, bev: 0.012 }); f.box('glassTint', 0, 0.044, -0.012, 0.088, 0.034, 0.108, { bev: 0.012 }); f.box('paint', 0, 0.076, -0.012, 0.086, 0.006, 0.1, { c: col, bev: 0.004 }); for (const sx of [-1, 1]) for (const sz of [-1, 1]) f.cylX('rubber', sx * 0.052, 0.018, sz * 0.068, 0.018, 0.014, 8); for (const sx of [-1, 1]) { f.box('lamp', sx * 0.034, 0.03, 0.106, 0.022, 0.01, 0.004); f.box('glowRed', sx * 0.034, 0.03, -0.106, 0.022, 0.01, 0.004); } });
+  const bench = (F, x, y, z, ry) => F.at(x, y, z, ry || 0, f => { f.box('wood', 0, 0.03, 0, 0.14, 0.012, 0.045, { c: 0xa77b4a }); f.box('wood', 0, 0.045, -0.022, 0.14, 0.04, 0.008, { c: 0xa77b4a }); for (const s of [-1, 1]) f.box('steelDark', s * 0.06, 0, 0, 0.01, 0.03, 0.04); });
+  const picnic = (F, x, y, z, ry) => F.at(x, y, z, ry || 0, f => { f.box('wood', 0, 0.045, 0, 0.18, 0.012, 0.07, { c: 0xb98c58 }); for (const s of [-1, 1]) { f.box('wood', 0, 0.025, s * 0.065, 0.18, 0.01, 0.025, { c: 0xa77b4a }); f.box('wood', s * 0.06, 0, 0, 0.012, 0.045, 0.1, { c: 0x8a5a34, rz: 0 }); } });
+  const solar = (F, x, y, z, w, d, tilt) => { F.box('steelDark', x, y, z, w * 0.9, 0.01, 0.01); F.panel('solar', x, y + 0.012 + Math.abs(Math.sin(tilt)) * d / 2, z, w, d, 0.008, tilt); };
+
+  P.W = { lawn, hedge, tree, lamppost, win, gableEnds, car, bench, picnic, solar, H };
+  // ------------------------------------------------------------------ worker cottage: shingled gable house, brick chimney with smoke, porch, shutters, picket fence, veg patch
+  reg('worker_cottage', 1, 1, F => {
+    const y0 = lawn(F, 1, 1), q = F.q, hx = -0.04, hz = -0.12, wc = 0xf3e9d2;
+    F.box('concrete', hx, y0, hz, 0.58, 0.035, 0.4, { c: 0xa9aeb6 }); F.box('plaster', hx, y0 + 0.035, hz, 0.54, 0.25, 0.36, { c: wc, bev: 0.006, tile: 0.5 });
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) F.box('wood', hx + sx * 0.268, y0 + 0.035, hz + sz * 0.178, 0.016, 0.25, 0.016, { c: 0x8a5a34 }); F.box('wood', hx, y0 + 0.27, hz, 0.556, 0.016, 0.376, { c: 0x8a5a34 });
+    F.gable('shingle', hx, y0 + 0.285, hz, 0.4, 0.6, 0.17, { ry: PI / 2, over: 0.03, c: 0xb4472a, nogable: true }); gableEnds(F, 'plaster', hx, y0 + 0.286, hz, 0.376, 0.54, 0.15, PI / 2, wc);
+    F.box('wood', hx, y0 + 0.455, hz, 0.62, 0.012, 0.022, { c: 0x6f3a22 }); for (const s of [-1, 1]) F.box('wood', hx, y0 + 0.283, hz + s * 0.222, 0.62, 0.012, 0.014, { c: 0xf5f1e8 });
+    F.box('brick', -0.2, y0 + 0.3, hz - 0.09, 0.06, 0.22, 0.06, { tile: 0.2, bev: 0.004 }); F.box('concrete', -0.2, y0 + 0.52, hz - 0.09, 0.08, 0.014, 0.08, { c: 0x9aa1ab }); F.emitter(-0.2, y0 + 0.54, hz - 0.09, 0.05, true);
+    // front: door + porch, windows with shutters, flower box
+    P.door(F, 0.1, y0 + 0.035, hz + 0.18, 0.085, 0.17, 0, 0x2b6f8f); F.box('wood', 0.1, y0 + 0.035, hz + 0.25, 0.27, 0.016, 0.14, { c: 0xa77b4a }); F.box('wood', 0.1, y0 + 0.019, hz + 0.25, 0.1, 0.016, 0.16, { c: 0x9aa1ab });
+    for (const sx of [-1, 1]) F.box('wood', 0.1 + sx * 0.12, y0 + 0.05, hz + 0.31, 0.014, 0.19, 0.014, { c: 0xf5f1e8 }); F.box('shingle', 0.1, y0 + 0.24, hz + 0.26, 0.3, 0.012, 0.18, { c: 0x8a3a24, bev: 0.003 }); if (q >= 1) for (const sx of [-1, 1]) F.box('wood', 0.1 + sx * 0.12, y0 + 0.235, hz + 0.3, 0.014, 0.012, 0.1, { c: 0xf5f1e8 });
+    win(F, -0.16, y0 + 0.1, hz + 0.18, 0.11, 0.11, 0xb4472a, true); F.box('wood', -0.16, y0 + 0.062, hz + 0.205, 0.14, 0.03, 0.03, { c: 0x8a5a34 }); for (let i = 0; i < 4; i++) F.sphere('paint', -0.21 + i * 0.033, y0 + 0.1, hz + 0.215, 0.011, 6, 4, { c: [0xe63946, 0xf4a300, 0xffd166, 0xe63946][i] });
+    for (const sx of [-1, 1]) F.at(hx + sx * 0.27, y0, hz - 0.02, sx * PI / 2, f => { win(f, 0, y0 + 0.1, 0, 0.11, 0.11, 0xb4472a, sx > 0); });
+    P.door(F, hx - 0.08, y0 + 0.035, hz - 0.18, 0.07, 0.15, PI, 0x6f3a22);
+    if (q >= 1) solar(F, hx + 0.02, y0 + 0.37, hz + 0.01, 0.3, 0.13, -0.69);
+    // yard: path, fence, patch, shed, trees, details
+    for (let i = 0; i < 5; i++) F.box('concrete', 0.1, y0, hz + 0.37 + i * 0.054, 0.085, 0.008, 0.045, { c: 0xc9ccd2, bev: 0.003 });
+    const fz = 0.44; if (q >= 1) { for (let i = 0; i < 19; i++) { const x = -0.43 + i * 0.047; if (x > 0.03 && x < 0.18) continue; F.box('paint', x, y0, fz, 0.026, 0.07 + (i % 2) * 0.008, 0.008, { c: 0xf5f1e8 }); } for (const s of [-1, 1]) for (let j = 0; j < 7; j++) F.box('paint', s * 0.45, y0, 0.0 + j * 0.06 + (s > 0 ? 0.0 : 0.0), 0.008, 0.07, 0.026, { c: 0xf5f1e8 }); } F.box('paint', -0.2, y0 + 0.02, fz, 0.46, 0.012, 0.01, { c: 0xf5f1e8 }); F.box('paint', 0.3, y0 + 0.02, fz, 0.28, 0.012, 0.01, { c: 0xf5f1e8 });
+    for (const x of [0.03, 0.18]) F.box('wood', x, y0, fz, 0.016, 0.1, 0.016, { c: 0x8a5a34 });
+    F.box('dirt', -0.25, y0, 0.27, 0.32, 0.016, 0.2, { c: 0x5a3f2a, tile: 0.2 }); for (let r = 0; r < 3; r++) for (let i = 0; i < 6; i++) F.sphere('foliage', -0.37 + i * 0.045, y0 + 0.025, 0.21 + r * 0.06, 0.016, 5, 4, { c: r === 1 ? 0xb8d64a : 0x4c9a40 });
+    F.box('wood', 0.345, y0, -0.36, 0.2, 0.15, 0.18, { c: 0xa77b4a, bev: 0.004, tile: 0.4 }); F.box('shingle', 0.345, y0 + 0.15, -0.36, 0.23, 0.012, 0.2, { c: 0x6f3a22, rx: 0.12 }); F.box('wood', 0.345, y0, -0.268, 0.06, 0.1, 0.006, { c: 0x6f3a22 });
+    tree(F, -0.34, y0, -0.36, 1.15, 0); tree(F, 0.35, y0, 0.28, 0.85, 1); tree(F, 0.38, y0, -0.06, 0.6, 2);
+    F.cyl('wood', 0.275, y0, -0.02, 0.026, 0.026, 0.06, 10, { c: 0x6f4a2a }); F.cyl('steelDark', 0.275, y0 + 0.058, -0.02, 0.028, 0.028, 0.004, 10);
+    F.cyl('steelDark', 0.27, y0, 0.44, 0.005, 0.005, 0.1, 5); F.box('paint', 0.27, y0 + 0.095, 0.44, 0.04, 0.026, 0.03, { c: 0xd23b2b, bev: 0.004 }); lamppost(F, 0.2, y0, 0.3, 0.13); F.light(0.2, y0 + 0.14, 0.3, [1, 0.85, 0.55], 0.5);
+    P.barrel(F, -0.36, y0, 0.05, 0x15803d);
+  });
+
+  // ------------------------------------------------------------------ crew quarters: stacked container dwellings around a courtyard with walkways, stairs, solar roofs
+  reg('worker_housing', 2, 2, F => {
+    const y0 = lawn(F, 2, 2, { kerb: 0x9aa1ab, grass: 0x56a04a }), q = F.q, sc = 0.95, L = 0.62 * sc, Hc = 0.27 * sc, W = 0.25 * sc;
+    const cols = [[0x3e6e91, 0xd9822b, 0xdfe3e8], [0x4a8a5a, 0xdfe3e8, 0xb04a3a], [0xe2b93b, 0x3e6e91, 0x4a8a5a], [0xd9822b, 0xdfe3e8, 0x3e6e91]];
+    const rows = [{ z: -0.58, face: 1, lo: cols[0], up: cols[1] }, { z: 0.44, face: -1, lo: cols[2], up: cols[3] }];
+    F.box('concrete', 0, y0, -0.0, 1.84, 0.01, 0.74, { c: 0xc9ccd2, tile: 1 }); for (const rw of rows) F.box('concrete', 0, y0, rw.z, 1.84, 0.02, 0.3, { c: 0x9aa1ab }); F.box('asphalt', 0.35, y0, 0.78, 1.3, 0.008, 0.26, { tile: 1 }); F.box('concrete', -0.7, y0, 0.78, 0.4, 0.008, 0.26, { c: 0xc9ccd2 });
+    for (const [x, z, w, d] of [[-0.42, -0.82, 0.7, 0.14], [0.65, -0.82, 0.6, 0.14], [0.0, 0.62, 1.7, 0.05], [-0.7, 0.58, 0.5, 0.04]]) hedge(F, x, y0, z, w, d, 0.07);
+    for (const rw of rows) for (let k = 0; k < 3; k++) {
+      const x = -0.6 + k * 0.6, fzf = rw.z + rw.face * (W / 2);
+      for (const lv of [0, 1]) {
+        const by = y0 + lv * Hc, col = (lv ? rw.up : rw.lo)[k]; P.container(F, x, by, rw.z, 0, col, sc);
+        const dz = fzf + rw.face * 0.004, ry = rw.face > 0 ? 0 : PI;
+        F.at(x, by, dz, ry, f => { f.box('steelDark', 0.13, 0.09, 0, 0.13, 0.095, 0.01); f.box((H(x, by + rw.z) > 0.4) ? 'winLit' : 'glassTint', 0.13, 0.097, 0.004, 0.11, 0.075, 0.006); f.box('steel', 0.13, 0.09, 0.008, 0.115, 0.008, 0.008, { c: 0xdfe5ec }); f.box('paint', -0.14, 0.012, 0.0, 0.08, 0.17, 0.01, { c: lv ? 0xdfe3e8 : 0x6f4a2a }); f.box('steel', -0.115, 0.1, 0.008, 0.008, 0.03, 0.01); f.box('lamp', -0.14, 0.19, 0.008, 0.035, 0.008, 0.012); if (q >= 1) f.box('panel', 0.0, 0.14, 0.012, 0.06, 0.04, 0.03, { c: 0xeceff3, bev: 0.006 }); });
+      }
+      if (q >= 1) for (const sx of [-0.1, 0.1]) solar(F, x + sx * 1.1, y0 + 2 * Hc + 0.0, rw.z + (rw.face > 0 ? 0.03 : -0.03), 0.22, 0.12, rw.face > 0 ? -0.3 : 0.3);
+    }
+    // upper-level walkways facing the courtyard + rails + two stairs
+    for (const rw of rows) { const wz = rw.z + rw.face * (W / 2 + 0.05), yy = y0 + Hc; F.box('grating', 0, yy - 0.012, wz, 1.84, 0.012, 0.1, { tile: 0.4 }); F.box('steelDark', 0, yy - 0.024, wz + rw.face * 0.045, 1.84, 0.014, 0.012); P.rail(F, -0.92, wz + rw.face * 0.05, 0.92, wz + rw.face * 0.05, yy, 0.09, { c: 0xe6b422 });
+      for (const sx of [-0.9, -0.3, 0.3, 0.9]) F.box('steelDark', sx, y0, wz + rw.face * 0.045, 0.016, Hc - 0.024, 0.016); }
+    P.stairs(F, -0.92 + 0.0, y0, -0.2, 0.45, Hc, 0.1, 0); P.stairs(F, 0.92, y0, 0.2, 0.45, Hc, 0.1, PI);
+    // courtyard: picnic tables, fire pit, string lights, trees in planters
+    picnic(F, -0.45, y0, 0.0, 0); picnic(F, 0.45, y0, 0.0, 0); F.cyl('rock', 0.0, y0, -0.0, 0.07, 0.075, 0.03, 10, { c: 0x6b7480 }); F.cyl('glowOrange', 0.0, y0 + 0.02, 0.0, 0.045, 0.045, 0.01, 8); F.light(0.0, y0 + 0.08, 0.0, [1, 0.6, 0.25], 0.6);
+    for (const [x, z] of [[-0.9, 0.0], [0.9, 0.0]]) { F.cyl('steelDark', x, y0, z, 0.008, 0.01, 0.4, 6); } F.pipe('steel', [[-0.9, y0 + 0.38, 0.0], [-0.45, y0 + 0.33, 0.0], [0.0, y0 + 0.31, 0.0], [0.45, y0 + 0.33, 0.0], [0.9, y0 + 0.38, 0.0]], 0.003, { c: 0x2a2a2a }); for (let i = 0; i < 9; i++) { const t = i / 8, x = -0.9 + 1.8 * t, yy = y0 + 0.31 + 0.07 * Math.pow(Math.abs(t * 2 - 1), 2) - 0.012; F.box('lamp', x, yy, 0.0, 0.016, 0.016, 0.016); }
+    for (const x of [-0.18, 0.18]) { F.box('concrete', x, y0, 0.0, 0.09, 0.05, 0.09, { c: 0x9aa1ab, bev: 0.004 }); tree(F, x, y0 + 0.05, 0.0, 0.55, x < 0 ? 0 : 2); }
+    // front strip: parking, security booth, bike rack, mailboxes; back strip: utilities
+    for (let i = 0; i < 4; i++) F.box('paint', -0.2 + i * 0.28, y0 + 0.008, 0.78, 0.01, 0.003, 0.2, { c: 0xe8e8e8 }); car(F, -0.06, y0 + 0.008, 0.78, PI, 0x2563eb); car(F, 0.22, y0 + 0.008, 0.78, PI, 0xd23b2b); car(F, 0.5, y0 + 0.008, 0.78, PI, 0xe8e8e8);
+    F.box('paint', -0.7, y0, 0.78, 0.16, 0.15, 0.14, { c: 0xdfe3e8, bev: 0.008 }); F.box('glassTint', -0.7, y0 + 0.05, 0.852, 0.12, 0.07, 0.004); F.box('paint', -0.7, y0 + 0.15, 0.78, 0.2, 0.012, 0.18, { c: 0xd9822b, bev: 0.004 }); F.box('steel', -0.88, y0, 0.78, 0.012, 0.18, 0.012); F.box('paint', -0.85, y0 + 0.13, 0.78, 0.06, 0.04, 0.004, { c: 0xe63946 });
+    for (let i = 0; i < 4; i++) { F.box('steel', 0.7 + i * 0.05, y0, 0.84, 0.03, 0.05, 0.006, { c: 0xaab3bf }); F.box('steelDark', 0.7 + i * 0.05, y0 + 0.05, 0.84, 0.032, 0.004, 0.012); }
+    for (let i = 0; i < 5; i++) { F.torus('steel', 0.76 + i * 0.06, y0 + 0.035, 0.7, 0.035, 0.004, 3, 10, { rx: PI / 2, ry: PI / 2, c: 0xaab3bf }); }
+    F.cyl('alu', -0.55, y0, -0.82, 0.1, 0.1, 0.2, q >= 2 ? 18 : 12, { c: 0xdfe5ec }); F.cone('alu', -0.55, y0 + 0.2, -0.82, 0.1, 0.05, q >= 2 ? 18 : 12, { c: 0xdfe5ec }); for (const sx of [-1, 1]) F.box('steelDark', -0.55 + sx * 0.07, y0, -0.82, 0.016, 0.05, 0.1); P.hvac(F, 0.0, y0, -0.83, 0.2, 0.1, 0.12, 0); P.barrel(F, 0.45, y0, -0.84, 0x15803d); P.barrel(F, 0.55, y0, -0.84, 0xca8a04); P.crate(F, 0.75, y0, -0.82, 0.1, 0.2, 0xb89560);
+    P.mast(F, 0.9, 0.9, 0.5, PI); lamppost(F, -0.9, y0, 0.55, 0.28); lamppost(F, 0.9, y0, -0.55, 0.28);
+  });
+
+  // ------------------------------------------------------------------ mid-rise apartments: L-shaped facade blocks with balconies, lobby, roof plant, parking court
+  reg('apartment_tower', 2, 2, F => {
+    const y0 = P.slab(F, 2, 2, { hazard: false, c: 0x8a8f98, drains: [[0.6, 0.0], [-0.1, 0.8]] }), q = F.q, wc = 0xeadfca;
+    const blk = (x, z, w, d, h, c) => { F.box('concrete', x, y0, z, w + 0.03, 0.04, d + 0.03, { c: 0x8a919b, bev: 0.006 }); F.box('facade', x, y0 + 0.04, z, w, h - 0.04, d, { c, tile: 0.4, skip: 't', bev: 0.004 }); F.box('concrete', x, y0 + h, z, w + 0.03, 0.02, d + 0.03, { c: 0xb4bac2, bev: 0.006 }); for (const [px, pz, pw, pd] of [[x, z + d / 2 + 0.006, w + 0.03, 0.014], [x, z - d / 2 - 0.006, w + 0.03, 0.014], [x - w / 2 - 0.006, z, 0.014, d], [x + w / 2 + 0.006, z, 0.014, d]]) F.box('concrete', px, y0 + h + 0.02, pz, pw, 0.03, pd, { c: 0xc4c9d0 }); return y0 + h + 0.02; };
+    const ta = blk(-0.2, -0.62, 1.3, 0.5, 1.2, wc), tb = blk(-0.62, 0.05, 0.46, 0.82, 0.8, 0xe4d2b8);
+    // balconies on the street faces (windows sit on a 0.2 grid)
+    for (let f = 1; f < 6; f++) for (let k = -4; k <= 1; k++) { const x = 0.1 + 0.2 * k; F.box('concrete', x, y0 + 0.2 * f - 0.005, -0.345, 0.15, 0.012, 0.075, { c: 0xdfe3e8 }); if (q >= 1 || f % 2) F.box('glass', x, y0 + 0.2 * f + 0.007, -0.31, 0.15, 0.05, 0.004); F.box('steelDark', x, y0 + 0.2 * f + 0.007, -0.31, 0.15, 0.006, 0.006); }
+    for (let f = 1; f < 4; f++) for (let k = 0; k < 3; k++) { const z = -0.2 + 0.2 * k + 0.0; F.box('concrete', -0.385, y0 + 0.2 * f - 0.005, z + 0.06, 0.075, 0.012, 0.15, { c: 0xdfe3e8 }); if (q >= 1 || f % 2) F.box('glass', -0.35, y0 + 0.2 * f + 0.007, z + 0.06, 0.004, 0.05, 0.15); }
+    // entrance lobby, canopy, steps, planters
+    F.box('concrete', -0.2, y0, -0.2, 0.44, 0.03, 0.22, { c: 0xb4bac2 }); F.box('glassTint', -0.2, y0 + 0.03, -0.2, 0.4, 0.22, 0.18, { bev: 0.004 }); F.box('winLit', -0.2, y0 + 0.07, -0.108, 0.3, 0.12, 0.004); F.box('steelDark', -0.2, y0 + 0.03, -0.106, 0.012, 0.22, 0.008); P.canopy(F, -0.2, y0, -0.12, 0.5, 0.2, 0.26, 0xdfe3e8, 0x2f6f9f);
+    for (let i = 0; i < 3; i++) F.box('concrete', -0.2, y0 + i * 0.01, -0.07 + i * 0.03, 0.22, 0.012, 0.03, { c: 0xc9ccd2 });
+    // roof plant: water tank, lift room, solar racks, hvac, dishes
+    F.box('panel', 0.1, ta, -0.7, 0.2, 0.12, 0.2, { c: 0xdfe5ec, bev: 0.006 }); F.cyl('wood', -0.5, ta + 0.07, -0.62, 0.07, 0.07, 0.1, 14, { c: 0xa77b4a }); F.cone('steel', -0.5, ta + 0.17, -0.62, 0.07, 0.04, 14, { c: 0xaab3bf }); for (const sx of [-1, 1]) for (const sz of [-1, 1]) F.box('steelDark', -0.5 + sx * 0.05, ta, -0.62 + sz * 0.05, 0.012, 0.07, 0.012);
+    for (let i = 0; i < 3; i++) solar(F, 0.28, ta, -0.8 + i * 0.12, 0.22, 0.1, -0.3);
+    P.hvac(F, -0.05, ta, -0.55, 0.14, 0.1, 0.06, 0); P.hvac(F, -0.3, ta, -0.55, 0.14, 0.1, 0.06, 0); F.cylZ('steel', 0.4, ta + 0.2, -0.7, 0.005, 0.4, 5); F.sphere('alu', 0.35, ta + 0.1, -0.5, 0.04, 8, 4, { dome: true, c: 0xdfe5ec, rx: -0.7 }); F.cyl('steel', -0.62, ta, 0.05, 0.004, 0.004, 0.28, 5, { c: 0xe6e9ee }); F.box('lamp', -0.62, ta + 0.28, 0.05, 0.016, 0.016, 0.016); F.box('winLit', -0.62, tb + 0.05, 0.3, 0.1, 0.06, 0.12);
+    F.box('panel', -0.62, tb, 0.18, 0.2, 0.09, 0.2, { c: 0xdfe5ec, bev: 0.006 }); solar(F, -0.62, tb, 0.35, 0.3, 0.1, -0.3);
+    F.light(-0.2, y0 + 0.25, -0.15, [1, 0.9, 0.7], 0.8);
+    // parking court + trees + lamps
+    F.box('asphalt', 0.5, y0, 0.28, 0.82, 0.006, 1.2, { tile: 1, bev: 0.002 }); for (let i = 0; i < 4; i++) F.box('paint', 0.2 + i * 0.2, y0 + 0.006, 0.55, 0.008, 0.003, 0.22, { c: 0xe8e8e8 }); for (let i = 0; i < 4; i++) F.box('paint', 0.2 + i * 0.2, y0 + 0.006, 0.0, 0.008, 0.003, 0.22, { c: 0xe8e8e8 });
+    car(F, 0.3, y0 + 0.006, 0.55, PI, 0x2563eb); car(F, 0.7, y0 + 0.006, 0.55, PI, 0xdc2626); car(F, 0.5, y0 + 0.006, 0.0, 0, 0xe8e8e8); car(F, 0.9, y0 + 0.006, 0.0, 0, 0x1f2937); car(F, 0.3, y0 + 0.006, 0.85, PI, 0xf2b705);
+    for (const [x, z, k] of [[-0.62, 0.62, 0], [-0.3, 0.55, 2], [0.0, 0.75, 1], [-0.1, 0.4, 0]]) { F.box('concrete', x, y0, z, 0.08, 0.04, 0.08, { c: 0x9aa1ab }); tree(F, x, y0 + 0.04, z, 0.65, k); }
+    for (let i = 0; i < 4; i++) F.box('steel', -0.84, y0, 0.55 + i * 0.07, 0.02, 0.04, 0.04, { c: 0xaab3bf }); lamppost(F, 0.9, y0, 0.3, 0.3); lamppost(F, 0.1, y0, 0.3, 0.3); P.mast(F, 0.9, -0.9, 0.5, 0);
+  });
+})(typeof window !== 'undefined' ? window : globalThis);
+
+/* ---- models_work2.js ---- */
+/* Workforce II: eco_villas (3x2 green townhouses), canteen_plaza (2x2 canteen + fountain park), recreation_dome (3x3 geodesic biosphere + ferris wheel). No ports. Facing +Z = street side. */
+(function (root) {
+  'use strict';
+  const M = root.IEModels, P = root.IEParts, W = P.W, PI = Math.PI, TAU = PI * 2, reg = (t, w, d, f, v) => M.reg(t, w, d, f, v);
+  if (!W) return; const { lawn, hedge, tree, lamppost, bench, solar, H } = W;
+  const flowers = (F, x, y, z, w, d, n, seed) => { F.box('dirt', x, y, z, w, 0.016, d, { c: 0x5a3f2a, tile: 0.2 }); const cs = [0xe63946, 0xf4a300, 0xffd166, 0xff7aa2, 0xc77dff, 0xffffff]; for (let i = 0; i < n; i++) F.sphere('paint', x - w / 2 + 0.02 + (w - 0.04) * ((i * 0.618 + seed * 0.13) % 1), y + 0.026, z - d / 2 + 0.02 + (d - 0.04) * ((i * 0.381 + seed * 0.29) % 1), 0.014, 5, 4, { c: cs[(i + seed) % 6] }); };
+  const table = (F, x, y, z, c, chairs) => { F.cyl('steelDark', x, y, z, 0.006, 0.006, 0.05, 5); F.cyl('paint', x, y + 0.05, z, 0.045, 0.045, 0.008, 10, { c }); F.cyl('steelDark', x, y, z, 0.025, 0.025, 0.004, 8); for (let k = 0; k < chairs; k++) { const a = k * TAU / chairs + 0.6, cx = x + Math.cos(a) * 0.075, cz = z + Math.sin(a) * 0.075; F.at(cx, y, cz, -a + PI / 2, f => { f.box('wood', 0, 0.026, 0, 0.034, 0.008, 0.034, { c: 0xb98c58 }); f.box('wood', 0, 0.032, 0.015, 0.034, 0.03, 0.006, { c: 0xb98c58 }); for (const sx of [-1, 1]) for (const sz of [-1, 1]) f.box('steelDark', sx * 0.013, 0, sz * 0.013, 0.004, 0.026, 0.004); }); } };
+  const umbrella = (F, x, y, z, c) => { F.cyl('steel', x, y + 0.05, z, 0.004, 0.004, 0.1, 5, { c: 0xc2c9d3 }); F.cone('paint', x, y + 0.13, z, 0.1, 0.045, 10, { c }); F.cyl('paint', x, y + 0.172, z, 0.004, 0.004, 0.012, 5, { c: 0x2a2a2a }); };
+  const bike = (F, x, y, z, ry, c) => F.at(x, y, z, ry, f => { for (const s of [-1, 1]) f.torus('rubber', 0, 0.026, s * 0.04, 0.026, 0.004, 3, 10, { rx: PI / 2, ry: PI / 2 }); f.box('paint', 0, 0.035, 0, 0.006, 0.006, 0.09, { c }); f.box('paint', 0, 0.055, -0.01, 0.006, 0.02, 0.006, { c }); f.box('steelDark', 0, 0.065, -0.03, 0.02, 0.004, 0.012); });
+
+  // ------------------------------------------------------------------ garden townhouses: terrace of four timber-and-plaster homes with green roofs, solar, pond with bridge, glasshouse, bike carport
+  reg('eco_villas', 3, 2, F => {
+    const y0 = lawn(F, 3, 2, { kerb: 0xb4b9c1, grass: 0x5aa84a }), q = F.q, uz = -0.55, door = [0x2a9d8f, 0xf4a300, 0xe76f51, 0x3b82f6], wood = [0xc79a64, 0xb68552, 0xd1a771, 0xa87848];
+    for (let i = 0; i < 4; i++) {
+      const ux = -0.99 + i * 0.66;
+      F.box('concrete', ux, y0, uz, 0.66, 0.03, 0.52, { c: 0x9aa1ab }); F.box('plaster', ux, y0 + 0.03, uz, 0.64, 0.2, 0.5, { c: 0xf1ece0, bev: 0.006, tile: 0.5 }); F.box('wood', ux, y0 + 0.23, uz + 0.02, 0.64, 0.19, 0.5, { c: wood[i], bev: 0.004, tile: 0.4 });
+      F.box('concrete', ux, y0 + 0.42, uz + 0.02, 0.68, 0.02, 0.54, { c: 0xdfe3e8, bev: 0.004 }); F.box('foliage', ux, y0 + 0.44, uz + 0.02, 0.62, 0.016, 0.48, { c: i % 2 ? 0x6aa84f : 0x5c9e4a, tile: 0.4 });
+      if (q >= 1) for (let k = 0; k < 5; k++) F.sphere('foliage', ux - 0.22 + (k * 0.37 % 0.44), y0 + 0.46, uz - 0.12 + (k * 0.23 % 0.32), 0.026, 6, 4, { c: [0x7fb069, 0xa3c46a, 0x5c9e4a][k % 3] });
+      if (i % 2) solar(F, ux, y0 + 0.456, uz + 0.05, 0.5, 0.17, -0.3);
+      F.box('steelDark', ux - 0.13, y0 + 0.055, uz + 0.252, 0.34, 0.15, 0.008); F.box(i % 2 ? 'winLit' : 'glassTint', ux - 0.13, y0 + 0.062, uz + 0.256, 0.32, 0.136, 0.006); if (q >= 1) for (let k = -1; k <= 1; k++) F.box('steelDark', ux - 0.13 + k * 0.107, y0 + 0.055, uz + 0.258, 0.008, 0.15, 0.006);
+      P.door(F, ux + 0.19, y0 + 0.03, uz + 0.25, 0.085, 0.16, 0, door[i]); F.box('paint', ux + 0.19, y0 + 0.222, uz + 0.3, 0.15, 0.008, 0.1, { c: 0xdfe3e8 });
+      for (const k of [-1, 1]) { F.box('steelDark', ux + k * 0.17, y0 + 0.27, uz + 0.274, 0.15, 0.12, 0.008); F.box(((i + k + 3) % 3 === 0) ? 'winLit' : 'glassTint', ux + k * 0.17, y0 + 0.276, uz + 0.278, 0.135, 0.108, 0.006); }
+      if (q >= 1) { F.box('wood', ux + 0.17, y0 + 0.225, uz + 0.3, 0.16, 0.012, 0.06, { c: 0xa77b4a }); F.box('glass', ux + 0.17, y0 + 0.24, uz + 0.325, 0.16, 0.06, 0.004); F.box('steelDark', ux + 0.17, y0 + 0.295, uz + 0.325, 0.16, 0.006, 0.006); }
+      F.cyl('alu', ux + 0.28, y0, uz - 0.28, 0.03, 0.03, 0.09, 10, { c: 0x3b82f6 });
+      F.box('concrete', ux + 0.19, y0, -0.1, 0.09, 0.008, 0.31, { c: 0xcbcfd5 }); flowers(F, ux - 0.14, y0, -0.18, 0.28, 0.09, 6, i);
+      if (i % 2 === 0) { F.box('wood', ux - 0.14, y0, -0.05, 0.3, 0.014, 0.13, { c: 0xb98c58, tile: 0.5 }); for (const sx of [-1, 1]) for (const sz of [-1, 1]) F.box('wood', ux - 0.14 + sx * 0.14, y0 + 0.014, -0.05 + sz * 0.055, 0.012, 0.16, 0.012, { c: 0x8a5a34 }); for (let k = 0; k < 5; k++) F.box('wood', ux - 0.14, y0 + 0.17, -0.1 + k * 0.025, 0.31, 0.008, 0.012, { c: 0x8a5a34 }); if (q >= 1) { F.box('wood', ux - 0.2, y0 + 0.014, -0.05, 0.05, 0.03, 0.05, { c: 0x6b4a2a }); F.cyl('paint', ux - 0.1, y0 + 0.014, -0.05, 0.02, 0.02, 0.035, 8, { c: door[i] }); } }
+    }
+    for (let i = 0; i <= 4; i++) hedge(F, -1.32 + i * 0.66, y0, -0.1, 0.03, 0.4, 0.06); hedge(F, 0, y0, -0.33 + 0.0, 0.0001, 0.0001, 0.0001);
+    // communal path, lamps, benches
+    F.box('concrete', 0, y0, 0.2, 2.78, 0.008, 0.16, { c: 0xcbcfd5, tile: 1 }); for (const x of [-1.2, -0.4, 0.4, 1.2]) { lamppost(F, x, y0, 0.3, 0.2); } bench(F, -0.2, y0, 0.31, 0); bench(F, 0.5, y0, 0.31, 0); F.light(-0.4, y0 + 0.22, 0.3, [1, 0.9, 0.6], 0.6); F.light(0.4, y0 + 0.22, 0.3, [1, 0.9, 0.6], 0.6);
+    // pond with rocks, lily pads, reeds and an arched timber bridge (crossing along Z)
+    const px = -0.85, pz = 0.62; F.box('dirt', px, y0, pz, 0.88, 0.006, 0.52, { c: 0x6b5a45, bev: 0.06 }); F.box('water', px, y0 + 0.004, pz, 0.8, 0.012, 0.44, { bev: 0.1, c: 0x2a8fb8 });
+    const nr = q >= 1 ? 16 : 9; for (let i = 0; i < nr; i++) { const a = i * TAU / nr, rx = Math.cos(a) * 0.43, rz = Math.sin(a) * 0.25; F.sphere('rock', px + rx, y0 + 0.012, pz + rz, 0.026 + 0.014 * H(i, 3), 6, 4, { c: 0x8a919b }); }
+    for (const [dx, dz] of [[-0.25, 0.08], [0.22, -0.08], [0.3, 0.1], [-0.12, -0.12]]) { F.cyl('foliage', px + dx, y0 + 0.014, pz + dz, 0.03, 0.03, 0.004, 8, { c: 0x3f8f3f }); } F.sphere('paint', px + 0.22, y0 + 0.022, pz - 0.08, 0.012, 6, 4, { c: 0xff7aa2 }); for (const [dx, dz] of [[-0.4, 0.15], [-0.43, 0.05], [0.4, -0.15], [0.43, -0.05]]) F.cone('foliage', px + dx, y0 + 0.012, pz + dz, 0.008, 0.12, 4, { c: 0x6aa84f });
+    for (let k = 0; k <= 8; k++) { const u = (k - 4) / 4, z = pz + u * 0.26, yy = y0 + 0.022 + 0.05 * (1 - u * u), sl = Math.atan(-0.5 * 2 * u * 0.05 / 0.26 * 4 / 4); F.box('wood', px, yy, z, 0.15, 0.012, 0.07, { rx: -sl * 4 / 4, c: 0xa77b4a }); }
+    for (const s of [-1, 1]) { F.beam('wood', [px + s * 0.075, y0 + 0.07, pz - 0.26], [px + s * 0.075, y0 + 0.1, pz], 0.008); F.beam('wood', [px + s * 0.075, y0 + 0.1, pz], [px + s * 0.075, y0 + 0.07, pz + 0.26], 0.008); for (const k of [-1, 0, 1]) F.box('wood', px + s * 0.075, y0 + 0.022 + (k === 0 ? 0.05 : 0.0), pz + k * 0.26, 0.01, 0.07, 0.01, { c: 0x8a5a34 }); }
+    // glasshouse + raised beds + compost
+    const gx = 1.0, gz = 0.65; F.box('concrete', gx, y0, gz, 0.66, 0.035, 0.44, { c: 0x9aa1ab }); for (const [dx, dz, w, d] of [[0, 0.21, 0.64, 0.006], [0, -0.21, 0.64, 0.006], [-0.32, 0, 0.006, 0.42], [0.32, 0, 0.006, 0.42]]) F.box('glass', gx + dx, y0 + 0.035, gz + dz, w, 0.15, d);
+    F.gable('glass', gx, y0 + 0.185, gz, 0.44, 0.64, 0.12, { ry: PI / 2, c: 0xbfe3ea }); for (const sx of [-1, 1]) for (const sz of [-1, 1]) F.box('alu', gx + sx * 0.32, y0 + 0.035, gz + sz * 0.21, 0.012, 0.15, 0.012, { c: 0xdfe5ec }); if (q >= 1) for (let k = 0; k < 5; k++) { const x = gx - 0.3 + k * 0.15; F.beam('alu', [x, y0 + 0.185, gz - 0.22], [x, y0 + 0.305, gz], 0.006); F.beam('alu', [x, y0 + 0.305, gz], [x, y0 + 0.185, gz + 0.22], 0.006); } F.box('alu', gx, y0 + 0.303, gz, 0.66, 0.008, 0.01, { c: 0xdfe5ec });
+    F.box('dirt', gx, y0 + 0.035, gz - 0.09, 0.56, 0.03, 0.1, { c: 0x5a3f2a }); F.box('dirt', gx, y0 + 0.035, gz + 0.09, 0.56, 0.03, 0.1, { c: 0x5a3f2a }); if (q >= 1) for (let k = 0; k < 7; k++) for (const z of [-0.09, 0.09]) { F.sphere('foliage', gx - 0.24 + k * 0.08, y0 + 0.085, gz + z, 0.03, 6, 4, { c: 0x4c9a40 }); if (k % 2) F.sphere('paint', gx - 0.24 + k * 0.08 + 0.015, y0 + 0.075, gz + z + 0.02, 0.011, 5, 4, { c: 0xe63946 }); } F.light(gx, y0 + 0.2, gz, [0.9, 0.5, 0.85], 0.6);
+    for (let i = 0; i < 2; i++) { F.box('wood', 0.5, y0, 0.52 + i * 0.2, 0.16, 0.035, 0.12, { c: 0xa77b4a }); flowers(F, 0.5, y0 + 0.02, 0.52 + i * 0.2, 0.14, 0.1, 4, i + 2); } for (let i = 0; i < 3; i++) F.box('wood', 0.5 + (i - 1) * 0.0, y0, 0.86, 0.045, 0.06, 0.12, { c: 0x8a5a34, tx: 0 });
+    // bike & solar carport
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) F.box('steelDark', -0.1 + sx * 0.25, y0, 0.66 + sz * 0.1, 0.014, 0.19, 0.014); solar(F, -0.1, y0 + 0.19, 0.66, 0.56, 0.3, 0.12); F.box('steelDark', -0.1, y0 + 0.183, 0.66, 0.54, 0.008, 0.26); if (q >= 1) { bike(F, -0.25, y0, 0.66, PI / 2 + 0.1, 0xe63946); bike(F, -0.15, y0, 0.66, PI / 2, 0x2a9d8f); bike(F, -0.05, y0, 0.66, PI / 2 - 0.05, 0xf4a300); } F.box('steelDark', 0.18, y0, 0.58, 0.04, 0.1, 0.03); F.box('glowGreen', 0.18, y0 + 0.07, 0.5845, 0.025, 0.02, 0.003);
+    for (const [x, z, s, k] of [[-1.34, 0.0, 1.0, 0], [-1.25, 0.88, 0.9, 2], [1.33, 0.1, 1.1, 1], [0.28, 0.85, 0.8, 3], [-0.35, 0.88, 0.7, 1], [1.34, 0.88, 0.9, 0], [-1.33, -0.84, 1.2, 2], [1.33, -0.84, 1.2, 0]]) tree(F, x, y0, z, s, k);
+    P.mast(F, 1.38, 0.35, 0.5, PI);
+  });
+
+  // ------------------------------------------------------------------ canteen & park: glazed canteen with awning, pergola terrace, tables and umbrellas, fountain park with benches and flower beds
+  reg('canteen_plaza', 2, 2, F => {
+    const y0 = lawn(F, 2, 2, { kerb: 0xb4b9c1, grass: 0x5aa84a }), q = F.q, bz = -0.64;
+    F.box('concrete', 0, y0, bz, 1.54, 0.03, 0.48, { c: 0xa9aeb6 }); F.box('plaster', 0, y0 + 0.03, bz, 1.5, 0.3, 0.44, { c: 0xf4efe4, bev: 0.006, tile: 0.5 }); F.box('wood', -0.5, y0 + 0.03, bz + 0.222, 0.46, 0.3, 0.006, { c: 0xb98c58, tile: 0.4 });
+    F.box('steelDark', 0.3, y0 + 0.05, bz + 0.224, 0.88, 0.24, 0.01); F.box('winLit', 0.3, y0 + 0.06, bz + 0.229, 0.86, 0.22, 0.006); for (let i = 0; i <= 8; i++) F.box('steelDark', -0.14 + i * 0.1, y0 + 0.05, bz + 0.232, 0.01, 0.24, 0.008); F.box('steelDark', 0.3, y0 + 0.17, bz + 0.232, 0.88, 0.008, 0.008); P.door(F, -0.2, y0 + 0.03, bz + 0.22, 0.14, 0.2, 0, 0x2a9d8f);
+    F.box('concrete', 0, y0 + 0.33, bz, 1.62, 0.025, 0.56, { c: 0xdfe3e8, bev: 0.006 }); F.box('foliage', -0.35, y0 + 0.355, bz - 0.07, 0.7, 0.014, 0.3, { c: 0x6aa84f, tile: 0.4 }); for (let i = 0; i < 3; i++) solar(F, 0.35 + i * 0.27, y0 + 0.355, bz - 0.04, 0.24, 0.14, -0.28);
+    F.box('panel', -0.68, y0 + 0.355, bz + 0.1, 0.2, 0.1, 0.14, { c: 0xc9d0d9, bev: 0.006 }); F.cyl('steel', -0.62, y0 + 0.455, bz + 0.1, 0.028, 0.028, 0.12, 8, { c: 0xaab3bf }); F.cyl('steelDark', -0.62, y0 + 0.575, bz + 0.1, 0.034, 0.034, 0.008, 8); F.emitter(-0.62, y0 + 0.6, bz + 0.1, 0.05, true); P.hvac(F, 0.0, y0 + 0.355, bz + 0.12, 0.14, 0.1, 0.06, 0); P.hvac(F, 0.2, y0 + 0.355, bz + 0.12, 0.14, 0.1, 0.06, 0);
+    // roof sign: plate + fork + knife
+    F.box('steelDark', 0, y0 + 0.355, bz + 0.0, 0.024, 0.1, 0.02); F.cylZ('paint', 0.0, y0 + 0.47, bz + 0.0, 0.08, 0.014, 20, { c: 0xf8f8f8 }); F.torus('paint', 0, y0 + 0.47, bz + 0.008, 0.074, 0.007, 3, 20, { rx: PI / 2, c: 0xd23b2b }); F.cylZ('lamp', 0.0, y0 + 0.47, bz + 0.0075, 0.046, 0.002, 16);
+    for (const k of [-1, 0, 1]) F.box('steel', -0.145 + k * 0.016, y0 + 0.47, bz + 0.0, 0.006, 0.07, 0.01, { c: 0xdfe5ec }); F.box('steel', -0.145, y0 + 0.4, bz + 0.0, 0.01, 0.06, 0.01, { c: 0xdfe5ec }); F.box('steel', -0.145, y0 + 0.455, bz, 0.05, 0.006, 0.01, { c: 0xdfe5ec }); F.box('steel', 0.145, y0 + 0.43, bz, 0.02, 0.11, 0.01, { c: 0xdfe5ec, bev: 0.004 }); F.box('steel', 0.145, y0 + 0.4, bz, 0.01, 0.05, 0.01, { c: 0xdfe5ec });
+    // striped awning (left part), pergola terrace (right part)
+    F.box('wood', 0, y0, -0.22, 1.5, 0.014, 0.38, { c: 0xb98c58, tile: 0.5 }); for (let i = 0; i < 7; i++) F.box('paint', -0.7 + i * 0.1, y0 + 0.27, bz + 0.33, 0.1, 0.008, 0.2, { rx: -0.25, c: i % 2 ? 0xf8f8f8 : 0xd23b2b }); for (const sx of [-0.72, -0.08]) F.box('steelDark', sx, y0 + 0.014, -0.4 + 0.1, 0.01, 0.2, 0.01);
+    for (const sx of [0.02, 0.4, 0.75]) for (const sz of [-0.38, -0.06]) F.box('wood', sx, y0 + 0.014, sz, 0.016, 0.24, 0.016, { c: 0x8a5a34 }); for (const sz of [-0.38, -0.06]) F.box('wood', 0.385, y0 + 0.25, sz, 0.76, 0.014, 0.022, { c: 0x8a5a34 }); for (let k = 0; k < 9; k++) F.box('wood', 0.03 + k * 0.095, y0 + 0.264, -0.22, 0.012, 0.01, 0.34, { c: 0x8a5a34 });
+    for (let i = 0; i < 12; i++) { const t = i / 11, x = 0.03 + 0.72 * t; F.box('lamp', x, y0 + 0.235 - 0.02 * Math.sin(t * PI), -0.06, 0.012, 0.012, 0.012); } F.light(0.4, y0 + 0.2, -0.2, [1, 0.8, 0.5], 0.7);
+    const tbl = [[0.2, -0.22, 0xd23b2b, 4], [0.55, -0.22, 0x2a9d8f, 4], [-0.25, -0.22, 0xf4a300, 3], [-0.55, -0.22, 0x3b82f6, 3]]; for (let i = 0; i < (q >= 1 ? 4 : 2); i++) table(F, tbl[i][0], y0 + 0.014, tbl[i][1], tbl[i][2], tbl[i][3]);
+    for (const [x, z, c] of [[-0.6, 0.0, 0xd23b2b], [0.3, 0.02, 0xf4a300], [0.7, 0.0, 0x2a9d8f]]) { table(F, x, y0, z, 0xf8f8f8, 3); umbrella(F, x, y0, z, c); }
+    // fountain park
+    const fx = 0, fz = 0.58; F.cyl('concrete', fx, y0, fz, 0.3, 0.3, 0.06, 28, { c: 0xc9ccd2, tile: 1 }); F.cyl('water', fx, y0 + 0.055, fz, 0.27, 0.27, 0.006, 28, { c: 0x3fa7d6 }); F.cyl('concrete', fx, y0 + 0.06, fz, 0.05, 0.06, 0.1, 12, { c: 0xc9ccd2 }); F.cyl('concrete', fx, y0 + 0.16, fz, 0.1, 0.05, 0.025, 16, { c: 0xc9ccd2 }); F.cyl('water', fx, y0 + 0.185, fz, 0.085, 0.085, 0.004, 16, { c: 0x58c7e8 }); F.emitter(fx, y0 + 0.2, fz, 0.07, true); F.torus('concrete', fx, y0 + 0.06, fz, 0.3, 0.014, 3, 28, { c: 0xdfe3e8 });
+    F.box('concrete', 0, y0, 0.0, 0.16, 0.008, 0.28, { c: 0xcbcfd5 }); for (const s of [-1, 1]) F.box('concrete', s * 0.62, y0, fz, 0.64, 0.008, 0.1, { c: 0xcbcfd5 }); F.box('concrete', 0, y0, 0.84, 0.1, 0.008, 0.22, { c: 0xcbcfd5 });
+    for (const [x, z] of [[-0.72, 0.28], [0.72, 0.28], [-0.72, 0.88], [0.72, 0.88]]) { F.box('concrete', x, y0, z, 0.26, 0.016, 0.2, { c: 0xb4b9c1, bev: 0.006 }); flowers(F, x, y0 + 0.008, z, 0.24, 0.18, 10, (x > 0 ? 3 : 1) + (z > 0.5 ? 1 : 0)); }
+    for (const [x, z, ry] of [[-0.42, fz, PI / 2], [0.42, fz, -PI / 2], [0, fz + 0.38, PI], [0, fz - 0.42, 0]]) bench(F, x, y0, z, ry); for (const [x, z] of [[-0.45, 0.25], [0.45, 0.25], [-0.45, 0.85], [0.45, 0.85]]) { lamppost(F, x, y0, z, 0.22); } F.light(-0.45, y0 + 0.24, 0.25, [1, 0.9, 0.6], 0.5); F.light(0.45, y0 + 0.24, 0.85, [1, 0.9, 0.6], 0.5);
+    for (const [x, z, s, k] of [[-0.86, 0.58, 1.0, 0], [0.84, 0.58, 1.1, 2], [-0.86, -0.2, 0.9, 1], [0.0, 0.88, 0.7, 3], [0.85, 0.86, 0.9, 1], [-0.86, 0.86, 0.9, 0]]) tree(F, x, y0, z, s, k);
+    F.box('paint', 0.8, y0, 0.12, 0.2, 0.15, 0.16, { c: 0xf8f8f8, bev: 0.008 }); F.box('winLit', 0.8, y0 + 0.05, 0.204, 0.14, 0.06, 0.004); for (let i = 0; i < 6; i++) F.box('paint', 0.71 + i * 0.036, y0 + 0.14, 0.2, 0.036, 0.008, 0.08, { rx: -0.3, c: i % 2 ? 0xf8f8f8 : 0x3b82f6 }); F.box('paint', 0.8, y0 + 0.15, 0.12, 0.22, 0.012, 0.18, { c: 0xdfe3e8 });
+    F.cyl('steel', -0.9, y0, -0.35, 0.006, 0.008, 0.5, 6, { c: 0xdfe5ec }); F.box('paint', -0.85, y0 + 0.38, -0.35, 0.09, 0.055, 0.004, { c: 0x2a9d8f }); F.sphere('steel', -0.9, y0 + 0.5, -0.35, 0.01, 5, 4);
+  });
+
+  // ------------------------------------------------------------------ biosphere dome: geodesic glass dome over a rainforest garden, plaza, entrance airlock and an animated ferris wheel
+  const geoCache = {};
+  const geo = f => {
+    if (geoCache[f]) return geoCache[f];
+    const t = (1 + Math.sqrt(5)) / 2, nrm = v => { const l = Math.hypot(v[0], v[1], v[2]); return [v[0] / l, v[1] / l, v[2] / l]; };
+    let vs = [[-1, t, 0], [1, t, 0], [-1, -t, 0], [1, -t, 0], [0, -1, t], [0, 1, t], [0, -1, -t], [0, 1, -t], [t, 0, -1], [t, 0, 1], [-t, 0, -1], [-t, 0, 1]].map(nrm);
+    const a = vs[0], k = nrm([-a[2], 0, a[0]]), th = Math.acos(a[1]), c = Math.cos(th), s = Math.sin(th);
+    vs = vs.map(v => { const kv = [k[1] * v[2] - k[2] * v[1], k[2] * v[0] - k[0] * v[2], k[0] * v[1] - k[1] * v[0]], kd = k[0] * v[0] + k[1] * v[1] + k[2] * v[2]; return [0, 1, 2].map(i => v[i] * c + kv[i] * s + k[i] * kd * (1 - c)); });
+    const faces = [[0, 11, 5], [0, 5, 1], [0, 1, 7], [0, 7, 10], [0, 10, 11], [1, 5, 9], [5, 11, 4], [11, 10, 2], [10, 7, 6], [7, 1, 8], [3, 9, 4], [3, 4, 2], [3, 2, 6], [3, 6, 8], [3, 8, 9], [4, 9, 5], [2, 4, 11], [6, 2, 10], [8, 6, 7], [9, 8, 1]];
+    const pts = [], map = {}, idx = p => { const key = Math.round(p[0] * 1e4) + ',' + Math.round(p[1] * 1e4) + ',' + Math.round(p[2] * 1e4); if (map[key] == null) { map[key] = pts.length; pts.push(p); } return map[key]; }, tris = [];
+    for (const [i0, i1, i2] of faces) { const A = vs[i0], B = vs[i1], C = vs[i2], PP = (i, j) => nrm([0, 1, 2].map(m => (A[m] * (f - i - j) + B[m] * i + C[m] * j) / f));
+      for (let i = 0; i < f; i++) for (let j = 0; j < f - i; j++) { tris.push([idx(PP(i, j)), idx(PP(i + 1, j)), idx(PP(i, j + 1))]); if (i + j < f - 1) tris.push([idx(PP(i + 1, j)), idx(PP(i + 1, j + 1)), idx(PP(i, j + 1))]); } }
+    const keep = tris.filter(tr => tr.every(i => pts[i][1] > -1e-3)), edges = {}, used = {};
+    for (const tr of keep) for (let e = 0; e < 3; e++) { const a2 = tr[e], b2 = tr[(e + 1) % 3], kk = Math.min(a2, b2) + '_' + Math.max(a2, b2); edges[kk] = [Math.min(a2, b2), Math.max(a2, b2)]; used[a2] = 1; used[b2] = 1; }
+    return (geoCache[f] = { pts, tris: keep, edges: Object.values(edges), verts: Object.keys(used).map(Number) });
+  };
+  reg('recreation_dome', 3, 3, F => {
+    const y0 = lawn(F, 3, 3, { kerb: 0xb4b9c1, grass: 0x5aa84a }), q = F.q, cx = -0.3, cz = -0.3, R = 1.0, by = y0 + 0.1;
+    // plaza + ring wall
+    F.cyl('concrete', cx, y0, cz, 1.2, 1.2, 0.008, q >= 2 ? 48 : 32, { c: 0xd8dade, tile: 1 }); F.cyl('concrete', cx, y0, cz, R + 0.05, R + 0.05, 0.1, q >= 2 ? 48 : 32, { c: 0xb4bac2, tile: 2 }); F.torus('steel', cx, by, cz, R + 0.045, 0.012, 3, q >= 2 ? 48 : 32, { c: 0xc2c9d3 });
+    // geodesic shell
+    const g = geo(q >= 1 ? 4 : 2), P3 = v => [cx + v[0] * R, by + v[1] * R, cz + v[2] * R];
+    for (const [a, b, c] of g.tris) { const A = g.pts[a], B = g.pts[b], C = g.pts[c], n = [A[0] + B[0] + C[0], A[1] + B[1] + C[1], A[2] + B[2] + C[2]], l = Math.hypot(n[0], n[1], n[2]); F._triN('glass', P3(A.map(v => v * 0.998)), P3(B.map(v => v * 0.998)), P3(C.map(v => v * 0.998)), [n[0] / l, n[1] / l, n[2] / l], 1, {}); }
+    for (const [a, b] of g.edges) F.beam('alu', P3(g.pts[a]), P3(g.pts[b]), q >= 2 ? 0.018 : 0.022, { c: 0xdfe5ec }); if (q >= 2) for (const v of g.verts) { const p = P3(g.pts[v]); F.box('steel', p[0], p[1] - 0.014, p[2], 0.03, 0.03, 0.03, { c: 0xc2c9d3 }); }
+    // rainforest interior: soil, lawn, pond, waterfall rocks, palms and broadleaf trees, glowing lamps
+    F.cyl('dirt', cx, by - 0.03, cz, 0.98, 0.98, 0.04, q >= 2 ? 40 : 24, { c: 0x6b4f33 }); F.cyl('foliage', cx, by + 0.008, cz, 0.93, 0.93, 0.012, q >= 2 ? 40 : 24, { c: 0x5aa347, tile: 0.4 }); F.cyl('dirt', cx + 0.1, by + 0.008, cz + 0.08, 0.29, 0.29, 0.01, 24, { c: 0x6b5a45 }); F.cyl('water', cx + 0.1, by + 0.02, cz + 0.08, 0.26, 0.26, 0.004, 24, { c: 0x2a8fb8 }); for (let i = 0; i < 10; i++) { const a = i * TAU / 10; F.sphere('rock', cx + 0.1 + Math.cos(a) * 0.27, by + 0.025, cz + 0.08 + Math.sin(a) * 0.27, 0.03 + 0.012 * H(i, 7), 6, 4, { c: 0x8a919b }); }
+    F.cone('rock', cx + 0.1, by + 0.02, cz - 0.24, 0.12, 0.2, 7, { c: 0x7d8794 }); F.box('water', cx + 0.1, by + 0.03, cz - 0.15, 0.04, 0.17, 0.02, { rx: 0.5, c: 0x7fd3ff }); F.emitter(cx + 0.1, by + 0.1, cz - 0.12, 0.14, true);
+    for (const [dx, dz] of [[0.1, 0.5], [0.05, 0.42], [0.15, 0.38]]) F.box('sand', cx + dx, by + 0.01, cz + dz, 0.12, 0.004, 0.08, { c: 0xd9c9a0 });
+    const palm = (x, z, s) => { F.cyl('wood', x, by + 0.01, z, 0.012 * s, 0.02 * s, 0.55 * s, 7, { c: 0x8a6a3a }); for (let i = 0; i < 7; i++) F.at(x, by + 0.56 * s, z, i * TAU / 7, f => f.box('foliage', 0.1 * s, 0, 0, 0.21 * s, 0.008, 0.05 * s, { rz: -0.42, c: i % 2 ? 0x3f8f3f : 0x2f7a35 })); F.sphere('foliage', x, by + 0.56 * s, z, 0.02 * s, 5, 4, { c: 0x2f7a35 }); };
+    for (const [dx, dz, s] of [[-0.45, 0.2, 1.0], [0.55, 0.2, 0.85], [-0.62, -0.25, 1.2], [0.52, -0.38, 0.9], [-0.2, -0.55, 1.1]]) palm(cx + dx, cz + dz, s);
+    for (const [dx, dz, s, k] of [[-0.3, 0.6, 0.9, 0], [0.35, -0.6, 1.1, 2], [0.0, 0.0, 0.0001, 0], [-0.7, 0.3, 0.8, 3], [0.65, 0.55, 0.7, 1], [0.7, 0.0, 0.9, 2]]) if (s > 0.01) tree(F, cx + dx, by + 0.01, cz + dz, s, k);
+    for (const [dx, dz] of [[-0.35, 0.0], [0.45, 0.45], [-0.15, -0.35], [0.6, -0.2]]) { F.cyl('steelDark', cx + dx, by + 0.01, cz + dz, 0.005, 0.005, 0.1, 5); F.sphere('lamp', cx + dx, by + 0.115, cz + dz, 0.017, 6, 4); } F.light(cx, by + 0.45, cz, [0.75, 1, 0.75], 1.3); F.light(cx + 0.1, by + 0.15, cz + 0.08, [0.5, 0.8, 1], 0.7);
+    // entrance airlock + steps, plaza dressing
+    const ez = cz + R + 0.1; F.box('concrete', cx, y0, ez + 0.0, 0.5, 0.06, 0.3, { c: 0xb4bac2, bev: 0.008 }); F.box('alu', cx, y0 + 0.06, ez, 0.4, 0.26, 0.24, { c: 0xdfe5ec, bev: 0.008 }); F.box('glass', cx, y0 + 0.07, ez + 0.121, 0.34, 0.2, 0.006); F.box('steelDark', cx, y0 + 0.07, ez + 0.124, 0.012, 0.2, 0.006); F.box('steel', cx, y0 + 0.32, ez, 0.44, 0.02, 0.28, { c: 0xaab3bf, bev: 0.006 }); F.box('lamp', cx, y0 + 0.058, ez + 0.13, 0.3, 0.006, 0.02); for (let i = 0; i < 3; i++) F.box('concrete', cx, y0 + i * 0.012 + 0.0, ez + 0.2 + i * 0.04, 0.44, 0.012, 0.04, { c: 0xc9ccd2 }); F.box('concrete', cx, y0, ez + 0.43, 0.18, 0.008, 0.4, { c: 0xcbcfd5 });
+    for (let i = 0; i < 22; i++) { const a = PI * 0.06 + i * (PI * 0.88 / 21), ox = Math.cos(a) * 1.14; if (Math.abs(ox) < 0.34) continue; const px = cx + ox, pz = cz + Math.sin(a) * 1.14; F.box('concrete', px, y0, pz, 0.11, 0.025, 0.11, { c: 0xb4b9c1, bev: 0.004 }); if (i % 2 === 0) F.sphere('foliage', px, y0 + 0.05, pz, 0.05, 6, 4, { c: 0x4c9a40 }); else flowers(F, px, y0 + 0.012, pz, 0.09, 0.09, 3, i); }
+    for (const [x, z, ry] of [[-0.9, 1.0, 0.2], [0.4, 1.0, -0.2], [-0.6, 1.25, 0], [0.1, 1.25, 0]]) bench(F, x, y0, z, ry); for (const [x, z] of [[-1.1, 0.8], [0.5, 0.8], [-0.3, 1.38]]) lamppost(F, x, y0, z, 0.28); F.light(-1.1, y0 + 0.3, 0.8, [1, 0.9, 0.6], 0.5);
+    for (const [x, z, s, k] of [[-1.35, 1.3, 1.0, 0], [-1.3, -1.3, 1.2, 2], [0.85, -1.35, 1.1, 1], [-1.35, 0.1, 0.9, 3], [0.2, -1.38, 0.8, 0]]) tree(F, x, y0, z, s, k);
+    // ferris wheel (animated; gondolas counter-rotate to stay level)
+    const wx = 1.0, wz = 0.98, wy = y0 + 0.58, wr = 0.42, nG = q >= 2 ? 12 : q >= 1 ? 10 : 8;
+    for (const s of [-1, 1]) { F.beam('steelDark', [wx - 0.22, y0, wz + s * 0.12], [wx, wy, wz + s * 0.12], 0.022); F.beam('steelDark', [wx + 0.22, y0, wz + s * 0.12], [wx, wy, wz + s * 0.12], 0.022); F.box('concrete', wx, y0, wz + s * 0.12, 0.6, 0.02, 0.06, { c: 0x9aa1ab }); } F.beam('steelDark', [wx - 0.13, y0 + 0.14, wz + 0.12], [wx + 0.13, y0 + 0.14, wz + 0.12], 0.012); F.beam('steelDark', [wx - 0.13, y0 + 0.14, wz - 0.12], [wx + 0.13, y0 + 0.14, wz - 0.12], 0.012); F.cylZ('steel', wx, wy, wz, 0.032, 0.34, 12, { c: 0xc2c9d3 });
+    F.anim('wheel', [wx, wy, wz], 'spin', S => {
+      for (const s of [-1, 1]) { S.torus('steel', 0, 0, s * 0.09, wr, 0.008, 3, q >= 2 ? 40 : 28, { rx: PI / 2, c: 0xe8e8e8 }); S.torus('steel', 0, 0, s * 0.09, wr * 0.62, 0.005, 3, 28, { rx: PI / 2, c: 0xdfe3e8 }); for (let i = 0; i < nG; i++) { const a = i * TAU / nG; S.beam('steel', [0, 0, s * 0.09], [Math.cos(a) * wr, Math.sin(a) * wr, s * 0.09], 0.006, { c: 0xe8e8e8 }); } }
+      for (let i = 0; i < nG; i++) { const a = i * TAU / nG + PI / nG, px = Math.cos(a) * wr, py = Math.sin(a) * wr; S.box('steel', px * 0.5, py * 0.5, 0, 0.004, 0.004, 0.18, { c: 0xdfe3e8 }); S.box('lamp', px, py, 0.1, 0.014, 0.014, 0.014); S.box('lamp', px, py, -0.1, 0.014, 0.014, 0.014); }
+      const gc = [0xe63946, 0xf4a300, 0x2a9d8f, 0x3b82f6, 0xc77dff, 0xffd166];
+      for (let i = 0; i < nG; i++) { const a = i * TAU / nG; S.anim('gon', [Math.cos(a) * wr, Math.sin(a) * wr, 0], 'spin', G => { G.box('steel', 0, -0.05, 0, 0.004, 0.05, 0.2, { c: 0xdfe3e8 }); G.box('paint', 0, -0.115, 0, 0.075, 0.055, 0.11, { c: gc[i % 6], bev: 0.008 }); G.box('glassTint', 0, -0.1, 0, 0.078, 0.025, 0.112); G.box('paint', 0, -0.062, 0, 0.085, 0.008, 0.12, { c: 0xf8f8f8 }); }, { axis: 'z', speed: -0.12 }); }
+    }, { axis: 'z', speed: 0.12 });
+    F.box('paint', wx - 0.42, y0, wz + 0.3, 0.16, 0.14, 0.12, { c: 0xf8f8f8, bev: 0.008 }); F.box('winLit', wx - 0.42, y0 + 0.05, wz + 0.362, 0.1, 0.05, 0.004); F.box('paint', wx - 0.42, y0 + 0.14, wz + 0.3, 0.2, 0.012, 0.16, { c: 0xd23b2b }); for (let i = 0; i < 6; i++) F.box('steel', wx - 0.5 + i * 0.05, y0, wz + 0.42, 0.004, 0.06, 0.004); F.box('steel', wx - 0.35, y0 + 0.06, wz + 0.42, 0.3, 0.004, 0.004);
+    P.mast(F, 1.38, -0.2, 0.55, PI);
+  });
+})(typeof window !== 'undefined' ? window : globalThis);
+
 /* ---- three_adapter.js ---- */
 /* IE3D: three.js (r128) adapter for IEModels / IEForge output.
    make(type, THREE, {preset, renderer}) -> { group, anim:{tick} } | null.  Geometry is cached per (type, quality) and shared between buildings;
@@ -2068,12 +2535,9 @@
     <div id="toastStack" style="top: var(--hud-top-offset);" class="fixed left-1/2 -translate-x-1/2 z-40 flex flex-col items-center gap-1.5 pointer-events-none"></div>
 
     <footer class="fixed bottom-2.5 left-2.5 right-2.5 z-20 flex flex-col items-center pointer-events-none">
-      <div id="toolHelperBanner" class="glass-pill rounded-full px-3.5 py-1 mb-2 text-[11px] font-medium text-slate-200 flex flex-wrap justify-center items-center gap-2 pointer-events-auto">
+      <div id="toolHelperBanner" class="glass-pill rounded-full px-3.5 py-1 mb-2 text-[11px] font-medium text-slate-200 flex items-center gap-3 pointer-events-auto">
         <span id="toolHelperText">Select a structure below (Green = IN • Orange = OUT • Arrow = Facing)</span>
         <button id="btnRotateTool" class="px-2 py-0.5 rounded-full bg-sky-500/25 border border-sky-400/40 text-sky-200 font-semibold hover:bg-sky-500/35 cursor-pointer">Dir: N [R]</button>
-        <button id="btnMassDeleteAll" class="hidden px-2 py-0.5 rounded-full bg-rose-500/15 border border-rose-400/30 text-rose-200 font-semibold hover:bg-rose-500/25 cursor-pointer">Select All</button>
-        <button id="btnMassDeleteClear" class="hidden px-2 py-0.5 rounded-full bg-slate-700/70 border border-slate-500/40 text-slate-200 font-semibold hover:bg-slate-600 cursor-pointer">Clear</button>
-        <button id="btnMassDeleteConfirm" class="hidden px-2 py-0.5 rounded-full bg-rose-500/30 border border-rose-400/50 text-rose-100 font-bold hover:bg-rose-500/45 cursor-pointer">🗑 Delete (0)</button>
         <button id="btnCancelTool" class="hidden px-2 py-0.5 rounded-full bg-rose-500/25 border border-rose-400/40 text-rose-200 font-semibold hover:bg-rose-500/35 cursor-pointer">Cancel [Esc]</button>
       </div>
       <div class="w-full max-w-6xl glass-panel rounded-2xl p-2 pointer-events-auto">
@@ -2294,8 +2758,7 @@
 
         // Tools
         power_wire: { id: 'power_wire', name: 'Power Line [P]', category: 'tools', icon: '🔌', cost: 15, power: 0, w: 1, d: 1, isTool: true },
-        bulldoze: { id: 'bulldoze', name: 'Demolish [X]', category: 'tools', icon: '🧨', cost: 0, power: 0, w: 1, d: 1, isTool: true },
-        mass_delete: { id: 'mass_delete', name: 'Mass Delete', category: 'tools', icon: '🗑️', cost: 0, power: 0, w: 1, d: 1, isTool: true }
+        bulldoze: { id: 'bulldoze', name: 'Demolish [X]', category: 'tools', icon: '🧨', cost: 0, power: 0, w: 1, d: 1, isTool: true }
       };
 
       const RESEARCH_BRANCHES = [
@@ -2446,12 +2909,8 @@
       function addWireInState(s, fromId, toId) { if (fromId === toId) return false; if (!getBuildingById(s, fromId) || !getBuildingById(s, toId)) return false; if (s.wires.some(w => (w.fromId === fromId && w.toId === toId) || (w.fromId === toId && w.toId === fromId))) return false; s.wires.push({ fromId, toId }); return true; }
       
       function placeBuildingInState(s, type, gx, gz, dir = 0, free = false) {
-        const def = BUILDINGS[type]; if (!def) return null; if (!free && !isBuildingUnlocked(s, def)) return null; if (!canPlaceFootprint(s, type, gx, gz, dir)) return null; if (!free && (s.buildingInventory?.[type] || 0) <= 0 && s.money < def.cost) return null;
-        if (!free) {
-          s.buildingInventory ||= {};
-          if ((s.buildingInventory[type] || 0) > 0) s.buildingInventory[type]--;
-          else s.money -= def.cost;
-        }
+        const def = BUILDINGS[type]; if (!def) return null; if (!free && !isBuildingUnlocked(s, def)) return null; if (!canPlaceFootprint(s, type, gx, gz, dir)) return null; if (!free && s.money < def.cost) return null;
+        if (!free) s.money -= def.cost;
         const { w, d } = getFootprintSize(def, dir); for (let dz = 0; dz < d; dz++) { for (let dx = 0; dx < w; dx++) { if (s.tiles[gz + dz]?.[gx + dx]) s.tiles[gz + dz][gx + dx].tree = false; } }
         const b = { id: nextBuildingId++, type, x: gx, z: gz, dir, condition: 100, progress: 0, activeRecipeIdx: 0, inv: {}, powerRatio: 1, assignedWorkers: 0, staffRatio: 1 };
         s.buildings.push(b);
@@ -2465,7 +2924,7 @@
         return b;
       }
 
-      function removeBuildingInState(s, id) { const idx = s.buildings.findIndex(b => b.id === id); if (idx === -1) return false; const removed = s.buildings[idx]; s.buildingInventory ||= {}; s.buildingInventory[removed.type] = (s.buildingInventory[removed.type] || 0) + 1; s.buildings.splice(idx, 1); s.wires = s.wires.filter(w => w.fromId !== id && w.toId !== id); s.trucks = s.trucks.filter(t => t.depotId !== id); s.bots = s.bots.filter(b => b.bayId !== id); return true; }
+      function removeBuildingInState(s, id) { const idx = s.buildings.findIndex(b => b.id === id); if (idx === -1) return false; s.money += Math.floor((BUILDINGS[s.buildings[idx].type]?.cost || 0) * 0.5); s.buildings.splice(idx, 1); s.wires = s.wires.filter(w => w.fromId !== id && w.toId !== id); s.trucks = s.trucks.filter(t => t.depotId !== id); s.bots = s.bots.filter(b => b.bayId !== id); return true; }
 
       function findRoadPath(s, startX, startZ, goalSet) {
         if (!goalSet || goalSet.size === 0) return null; const startK = `${startX},${startZ}`; if (goalSet.has(startK)) return [{ x: startX, z: startZ }];
@@ -2516,7 +2975,7 @@
           if ((Math.abs(Math.sin(x * 12.9898 + z * 78.233) * 43758.5453) % 1) < 0.22) t.tree = true;
         }}
 
-        return { sandbox, money: sandbox ? 250000 : 18000, rp: sandbox ? 9999 : 15, buildingInventory: {}, simSpeed: 1, simTime: 0, aqi: 12, happiness: 82, wagePolicy: 'standard', objectiveIndex: 0, unlockedTech: sandbox ? Object.fromEntries(Object.keys(RESEARCH).map(k => [k, true])) : {}, buildings: [], wires: [], cargoItems: [], trucks: [], bots: [], incomeEvents: [], payrollEvents: [], netIncomePerMin: 0, stats: { itemsProduced: 0, refinedProduced: 0, itemsExported: 0 }, lastGridStats: { totalGen: 0, totalDemand: 0, avgFactor: 1 }, lastHousingStats: { totalNeeded: 0, totalCap: 0, housed: 0, unfilledJobs: 0, spareWorkers: 0, roadBonusCap: 0 }, lastMoraleBreakdown: {}, tiles };
+        return { sandbox, money: sandbox ? 250000 : 18000, rp: sandbox ? 9999 : 15, simSpeed: 1, simTime: 0, aqi: 12, happiness: 82, wagePolicy: 'standard', objectiveIndex: 0, unlockedTech: sandbox ? Object.fromEntries(Object.keys(RESEARCH).map(k => [k, true])) : {}, buildings: [], wires: [], cargoItems: [], trucks: [], bots: [], incomeEvents: [], payrollEvents: [], netIncomePerMin: 0, stats: { itemsProduced: 0, refinedProduced: 0, itemsExported: 0 }, lastGridStats: { totalGen: 0, totalDemand: 0, avgFactor: 1 }, lastHousingStats: { totalNeeded: 0, totalCap: 0, housed: 0, unfilledJobs: 0, spareWorkers: 0, roadBonusCap: 0 }, lastMoraleBreakdown: {}, tiles };
       }
 
       function stepSimulation(s, dt) {
@@ -2716,36 +3175,12 @@
         let cubeRenderTarget, cubeCamera, staticEnv;
         let gridHelper, hoverGroup, hoverPadMesh, hoverArrowMesh, hoverInGroup, hoverOutGroup, rangeRingMesh, wirePreviewLine;
         let worldGroup, buildingsGroup, wiresGroup, dynamicGroup;
-        const buildingMeshes = new Map(), wireMeshes = new Map(), massDeleteHighlights = new Map(), cargoMeshes = [], truckMeshes = [], botMeshes = [], workerMeshes = [];
-        let massDeleteSelectedIds = new Set();
+        const buildingMeshes = new Map(), wireMeshes = new Map(), cargoMeshes = [], truckMeshes = [], botMeshes = [], workerMeshes = [];
         let currentPreset = (window.__IEdev && window.__IEdev.low) ? 'lite' : 'insane', trackpadMode = 'zoom', showGrid = true, selectedBuildingId = null, fpsSmooth = 60, dynamicScale = 1.5;
         const camState = { target: new THREE.Vector3(0, 0, 12), yaw: Math.PI / 4, pitch: 0.78, distance: 24 };
 
         function gridToWorld(gx, gz) { return new THREE.Vector3(gx - HALF_GRID + 0.5, 0, gz - HALF_GRID + 0.5); }
         function worldToGrid(wx, wz) { return { x: Math.floor(wx + HALF_GRID), z: Math.floor(wz + HALF_GRID) }; }
-
-        function syncMassDeleteHighlights(s) {
-          const active = new Set();
-          for (const b of s.buildings) {
-            if (!massDeleteSelectedIds.has(b.id)) continue;
-            active.add(b.id);
-            const def = BUILDINGS[b.type]; if (!def) continue;
-            const dims = getFootprintSize(def, b.dir || 0), w = dims.w, d = dims.d || def.d || 1;
-            let h = massDeleteHighlights.get(b.id);
-            if (!h || h.w !== w || h.d !== d || h.dir !== (b.dir || 0)) {
-              if (h) { buildingsGroup.remove(h.line); h.line.geometry.dispose(); h.line.material.dispose(); }
-              const geo = new THREE.EdgesGeometry(new THREE.BoxGeometry(w + 0.06, 0.025, d + 0.06));
-              const mat = new THREE.LineBasicMaterial({ color: 0xfb7185, depthTest: false, transparent: true, opacity: 0.98 });
-              const line = new THREE.LineSegments(geo, mat); line.renderOrder = 20;
-              h = { line, w, d, dir: b.dir || 0 }; massDeleteHighlights.set(b.id, h); buildingsGroup.add(line);
-            }
-            const wp = gridToWorld(b.x + (w - 1) * 0.5, b.z + (d - 1) * 0.5);
-            h.line.position.set(wp.x, 0.075, wp.z); h.line.rotation.y = DIRS[b.dir || 0].angle;
-          }
-          for (const [id, h] of massDeleteHighlights.entries()) {
-            if (!active.has(id)) { buildingsGroup.remove(h.line); h.line.geometry.dispose(); h.line.material.dispose(); massDeleteHighlights.delete(id); }
-          }
-        }
 
         function createGableRoofMesh(width, depth, ridgeHeight, mat) { const s = new THREE.Shape(); s.moveTo(-width * 0.5, 0); s.lineTo(width * 0.5, 0); s.lineTo(0, ridgeHeight); s.closePath(); const geo = new THREE.ExtrudeGeometry(s, { depth, bevelEnabled: false }); geo.translate(0, 0, -depth * 0.5); const mesh = new THREE.Mesh(geo, mat); mesh.castShadow = true; mesh.receiveShadow = true; return mesh; }
         
@@ -3069,7 +3504,6 @@
             if (e.anim.core) { if (e.anim.core.geometry.type === 'OctahedronGeometry') e.anim.core.rotation.y = time * 1.4; if (e.anim.core.material?.emissiveIntensity !== undefined) e.anim.core.material.emissiveIntensity = run ? 0.75 + Math.sin(time * 4 + b.id) * 0.25 : 0.1; }
           }
           for (const [id, e] of buildingMeshes.entries()) { if (!activeIds.has(id)) { buildingsGroup.remove(e.group); buildingMeshes.delete(id); } }
-          syncMassDeleteHighlights(s);
 
           const activeWK = new Set();
           for (const w of s.wires) {
@@ -3123,59 +3557,26 @@
           if (!(window.__IEpost && window.__IEpost.render(renderer, scene, camera, currentPreset))) renderer.render(scene, camera); 
         }
 
-        return { init, applyPreset, rebuildStaticWorld, syncSceneWithState, setHoverTile, setWirePreview, screenToWorld, worldToGrid, handleResize, render, panCamera: (dx, dz) => { camState.target.x = Math.max(-56, Math.min(56, camState.target.x + (dx * Math.cos(camState.yaw) + dz * Math.sin(camState.yaw)))); camState.target.z = Math.max(-56, Math.min(56, camState.target.z + (-dx * Math.sin(camState.yaw) + dz * Math.cos(camState.yaw)))); updateCameraTransform(); }, focusWorld: (wx, wz) => { camState.target.x = Math.max(-56, Math.min(56, wx)); camState.target.z = Math.max(-56, Math.min(56, wz)); updateCameraTransform(); }, rotateCamera: (dY) => { camState.yaw += dY; updateCameraTransform(); }, zoomCamera: (dD) => { camState.distance = Math.max(8, Math.min(64, camState.distance + dD)); updateCameraTransform(); }, getSelectedBuildingId: () => selectedBuildingId, setSelectedBuilding: id => { selectedBuildingId = id; }, setMassDeleteSelection: ids => { massDeleteSelectedIds = new Set(ids || []); }, getTrackpadMode: () => trackpadMode, toggleTrackpadMode: () => (trackpadMode = trackpadMode === 'zoom' ? 'pan' : 'zoom'), toggleGrid: () => { showGrid = !showGrid; if (gridHelper) gridHelper.visible = showGrid; return showGrid; }, _x: () => ({ scene, renderer, camera, sunLight, hemiLight, skyUniforms, waterUniforms, buildingMeshes, buildingsGroup, camState, preset: currentPreset, applyPreset }), getStats: () => ({ fps: Math.round(fpsSmooth), scale: dynamicScale, calls: renderer?.info?.render?.calls || 0 }) };
+        return { init, applyPreset, rebuildStaticWorld, syncSceneWithState, setHoverTile, setWirePreview, screenToWorld, worldToGrid, handleResize, render, panCamera: (dx, dz) => { camState.target.x = Math.max(-56, Math.min(56, camState.target.x + (dx * Math.cos(camState.yaw) + dz * Math.sin(camState.yaw)))); camState.target.z = Math.max(-56, Math.min(56, camState.target.z + (-dx * Math.sin(camState.yaw) + dz * Math.cos(camState.yaw)))); updateCameraTransform(); }, focusWorld: (wx, wz) => { camState.target.x = Math.max(-56, Math.min(56, wx)); camState.target.z = Math.max(-56, Math.min(56, wz)); updateCameraTransform(); }, rotateCamera: (dY) => { camState.yaw += dY; updateCameraTransform(); }, zoomCamera: (dD) => { camState.distance = Math.max(8, Math.min(64, camState.distance + dD)); updateCameraTransform(); }, getSelectedBuildingId: () => selectedBuildingId, setSelectedBuilding: id => { selectedBuildingId = id; }, getTrackpadMode: () => trackpadMode, toggleTrackpadMode: () => (trackpadMode = trackpadMode === 'zoom' ? 'pan' : 'zoom'), toggleGrid: () => { showGrid = !showGrid; if (gridHelper) gridHelper.visible = showGrid; return showGrid; }, _x: () => ({ scene, renderer, camera, sunLight, hemiLight, skyUniforms, waterUniforms, buildingMeshes, buildingsGroup, camState, preset: currentPreset, applyPreset }), getStats: () => ({ fps: Math.round(fpsSmooth), scale: dynamicScale, calls: renderer?.info?.render?.calls || 0 }) };
       })();
 
       const Input = (() => {
         let selTool = null, bDir = 0, wStart = null, isD = false, dMode = null, lx = 0, ly = 0, dMoved = false, lPt = '', kDown = new Set();
-        const massDeleteIds = new Set();
-        function updateMassDeleteControls() {
-          const active = selTool === 'mass_delete', count = massDeleteIds.size;
-          const all = document.getElementById('btnMassDeleteAll'), clear = document.getElementById('btnMassDeleteClear'), confirmBtn = document.getElementById('btnMassDeleteConfirm');
-          if (all) all.classList.toggle('hidden', !active);
-          if (clear) clear.classList.toggle('hidden', !active || count === 0);
-          if (confirmBtn) { confirmBtn.classList.toggle('hidden', !active || count === 0); confirmBtn.textContent = `🗑 Delete (${count})`; }
-          const bn = document.getElementById('toolHelperText');
-          if (active && bn) bn.textContent = `Mass Delete: click or drag over buildings to select • ${count} selected`;
-          Graphics.setMassDeleteSelection(massDeleteIds);
-        }
-        function clearMassDeleteSelection() { massDeleteIds.clear(); updateMassDeleteControls(); }
-        function selectAllForMassDelete() { if (!state || selTool !== 'mass_delete') return; for (const b of state.buildings) massDeleteIds.add(b.id); updateMassDeleteControls(); }
-        function confirmMassDelete() {
-          if (!state || selTool !== 'mass_delete' || massDeleteIds.size === 0) return;
-          const ids = [...massDeleteIds].filter(id => !!getBuildingById(state, id));
-          if (!ids.length) { clearMassDeleteSelection(); return; }
-          if (!confirm(`Delete ${ids.length} selected building${ids.length === 1 ? '' : 's'}? Each one will be returned to your building inventory.`)) return;
-          let removed = 0;
-          for (const id of ids) if (removeBuildingInState(state, id)) removed++;
-          if (ids.includes(Graphics.getSelectedBuildingId())) { Graphics.setSelectedBuilding(null); UI.closeInspector(); }
-          clearMassDeleteSelection(); setTool(null);
-          if (removed) { SoundFX.play('delete'); UI.toast(`${removed} building${removed === 1 ? '' : 's'} returned to your inventory.`, 'emerald'); }
-        }
-        function setTool(t) {
-          const previous = selTool;
-          if (previous === 'mass_delete' && t !== 'mass_delete') clearMassDeleteSelection();
-          if (t === 'mass_delete' && previous !== 'mass_delete') massDeleteIds.clear();
-          selTool = t; wStart = null; Graphics.setWirePreview(null); Graphics.setHoverTile(null, null, false, bDir, null);
-          const bn = document.getElementById('toolHelperText'), cx = document.getElementById('btnCancelTool');
-          if (!t) { if (bn) bn.textContent = 'Select a structure below (Green = IN • Orange = OUT • Arrow = Facing)'; if (cx) cx.classList.add('hidden'); }
-          else { const df = BUILDINGS[t]; if (bn) bn.textContent = t === 'power_wire' ? 'Click first powered node, then click second node within 9 tiles' : t === 'bulldoze' ? 'Click or drag over structures to return them to inventory' : t === 'mass_delete' ? 'Click or drag over buildings to select multiple for deletion' : `Placing ${df?.name} ($${df?.cost}) — Press [R] to Rotate`; if (cx) cx.classList.remove('hidden'); }
-          updateMassDeleteControls(); UI.renderBuildDock();
-        }
+        function setTool(t) { selTool = t; wStart = null; Graphics.setWirePreview(null); Graphics.setHoverTile(null, null, false, bDir, null); const bn = document.getElementById('toolHelperText'), cx = document.getElementById('btnCancelTool'); if (!t) { if (bn) bn.textContent = 'Select a structure below (Green = IN • Orange = OUT • Arrow = Facing)'; if (cx) cx.classList.add('hidden'); } else { const df = BUILDINGS[t]; if (bn) bn.textContent = t === 'power_wire' ? 'Click first powered node, then click second node within 9 tiles' : t === 'bulldoze' ? 'Click or drag over structures to demolish (50% refund)' : `Placing ${df?.name} ($${df?.cost}) — Press [R] to Rotate`; if (cx) cx.classList.remove('hidden'); } UI.renderBuildDock(); }
         function rotateDir() { const sId = Graphics.getSelectedBuildingId(); if (!selTool && sId && state) { const b = getBuildingById(state, sId); if (b) { b.dir = ((b.dir || 0) + 1) % 4; SoundFX.play('wire'); UI.updateInspector(b); return; } } bDir = (bDir + 1) % 4; const bt = document.getElementById('btnRotateTool'); if (bt) bt.textContent = `Dir: ${DIRS[bDir].name} [R]`; SoundFX.play('wire'); }
-        function applyToolAtGrid(gx, gz) { if (!state || !selTool) return; if (selTool === 'mass_delete') { const tg = getBuildingAt(state, gx, gz); if (tg && !massDeleteIds.has(tg.id)) { massDeleteIds.add(tg.id); updateMassDeleteControls(); } return; } if (selTool === 'bulldoze') { const tg = getBuildingAt(state, gx, gz); if (tg && removeBuildingInState(state, tg.id)) { SoundFX.play('delete'); if (Graphics.getSelectedBuildingId() === tg.id) { Graphics.setSelectedBuilding(null); UI.closeInspector(); } } return; } if (selTool === 'power_wire') { const tg = getBuildingAt(state, gx, gz); if (!tg) return; if (!wStart) { wStart = tg; SoundFX.play('wire'); UI.toast(`Selected ${BUILDINGS[tg.type]?.name}. Click target.`, 'sky'); } else { const d = Math.hypot(getBuildingCenter(wStart).x - getBuildingCenter(tg).x, getBuildingCenter(wStart).z - getBuildingCenter(tg).z); if (d > 9.5) UI.toast('Too far! Max 9 tiles.', 'rose'); else if (state.money < 15) UI.toast('Not enough funds.', 'rose'); else if (addWireInState(state, wStart.id, tg.id)) { state.money -= 15; SoundFX.play('wire'); UI.toast('Line connected!', 'emerald'); } wStart = null; Graphics.setWirePreview(null); } return; } const df = BUILDINGS[selTool]; if (!df) return; if ((state.buildingInventory?.[selTool] || 0) <= 0 && state.money < df.cost) { UI.toast(`Need $${df.cost.toLocaleString()} or have one in your inventory.`, 'rose'); return; } if (placeBuildingInState(state, selTool, gx, gz, bDir, false)) { SoundFX.play('build'); if (dMode !== 'paint') UI.renderBuildDock(); if (df.housingCap) UI.toast(`🏠 ${df.name} built! +${df.housingCap} beds.`, 'emerald'); } }
+        function applyToolAtGrid(gx, gz) { if (!state || !selTool) return; if (selTool === 'bulldoze') { const tg = getBuildingAt(state, gx, gz); if (tg && removeBuildingInState(state, tg.id)) { SoundFX.play('delete'); if (Graphics.getSelectedBuildingId() === tg.id) { Graphics.setSelectedBuilding(null); UI.closeInspector(); } } return; } if (selTool === 'power_wire') { const tg = getBuildingAt(state, gx, gz); if (!tg) return; if (!wStart) { wStart = tg; SoundFX.play('wire'); UI.toast(`Selected ${BUILDINGS[tg.type]?.name}. Click target.`, 'sky'); } else { const d = Math.hypot(getBuildingCenter(wStart).x - getBuildingCenter(tg).x, getBuildingCenter(wStart).z - getBuildingCenter(tg).z); if (d > 9.5) UI.toast('Too far! Max 9 tiles.', 'rose'); else if (state.money < 15) UI.toast('Not enough funds.', 'rose'); else if (addWireInState(state, wStart.id, tg.id)) { state.money -= 15; SoundFX.play('wire'); UI.toast('Line connected!', 'emerald'); } wStart = null; Graphics.setWirePreview(null); } return; } const df = BUILDINGS[selTool]; if (!df) return; if (state.money < df.cost) { UI.toast(`Need $${df.cost.toLocaleString()}.`, 'rose'); return; } if (placeBuildingInState(state, selTool, gx, gz, bDir, false)) { SoundFX.play('build'); if (df.housingCap) UI.toast(`🏠 ${df.name} built! +${df.housingCap} beds.`, 'emerald'); } }
 
         function init() {
           const c = document.getElementById('gameCanvas'); c.addEventListener('contextmenu', e => e.preventDefault());
-          c.addEventListener('pointerdown', e => { c.setPointerCapture(e.pointerId); isD = true; dMoved = false; lx = e.clientX; ly = e.clientY; lPt = ''; if (e.button === 2 || e.shiftKey) dMode = 'rotate'; else if (selTool && (BUILDINGS[selTool]?.isNetwork || selTool === 'bulldoze' || selTool === 'mass_delete')) { dMode = 'paint'; const wp = Graphics.screenToWorld(e.clientX, e.clientY); if (wp) { const g = Graphics.worldToGrid(wp.x, wp.z); lPt = `${g.x},${g.z}`; applyToolAtGrid(g.x, g.z); } } else dMode = 'pan'; });
-          c.addEventListener('pointermove', e => { const dx = e.clientX - lx, dy = e.clientY - ly; if (Math.hypot(dx, dy) > 4) dMoved = true; if (isD) { if (dMode === 'rotate') Graphics.rotateCamera(-dx * 0.007); else if (dMode === 'pan') Graphics.panCamera(-dx * 0.042, -dy * 0.042); else if (dMode === 'paint') { const wp = Graphics.screenToWorld(e.clientX, e.clientY); if (wp) { const g = Graphics.worldToGrid(wp.x, wp.z), k = `${g.x},${g.z}`; if (k !== lPt) { lPt = k; applyToolAtGrid(g.x, g.z); } } } } lx = e.clientX; ly = e.clientY; const wp = Graphics.screenToWorld(e.clientX, e.clientY); if (wp && state) { const g = Graphics.worldToGrid(wp.x, wp.z); if (selTool && selTool !== 'power_wire') { const val = (selTool === 'bulldoze' || selTool === 'mass_delete') ? (g.x >= 0 && g.z >= 0 && g.x < GRID_SIZE && g.z < GRID_SIZE && !!getBuildingAt(state, g.x, g.z)) : canPlaceFootprint(state, selTool, g.x, g.z, bDir); Graphics.setHoverTile(g.x, g.z, val, bDir, BUILDINGS[selTool]); } else Graphics.setHoverTile(null, null, false, bDir, null); if (selTool === 'power_wire' && wStart) Graphics.setWirePreview(wStart, wp.x, wp.z); } });
-          c.addEventListener('pointerup', e => { try { c.releasePointerCapture(e.pointerId); } catch (_) {} if (!dMoved && state) { const wp = Graphics.screenToWorld(e.clientX, e.clientY); if (wp) { const g = Graphics.worldToGrid(wp.x, wp.z); if (selTool) { if (dMode !== 'paint') applyToolAtGrid(g.x, g.z); } else { const clk = getBuildingAt(state, g.x, g.z); if (clk) { Graphics.setSelectedBuilding(clk.id); UI.openInspector(clk); } else { const t = state.tiles[g.z]?.[g.x]; if (t?.deposit) UI.toast(`⛏ ${DEPOSIT_PALETTE[t.deposit]?.label || t.deposit} — Place matching Extractor here!`, 'sky'); Graphics.setSelectedBuilding(null); UI.closeInspector(); } } } } if (dMode === 'paint' && selTool && selTool !== 'mass_delete') UI.renderBuildDock(); isD = false; dMode = null; });
+          c.addEventListener('pointerdown', e => { c.setPointerCapture(e.pointerId); isD = true; dMoved = false; lx = e.clientX; ly = e.clientY; lPt = ''; if (e.button === 2 || e.shiftKey) dMode = 'rotate'; else if (selTool && (BUILDINGS[selTool]?.isNetwork || selTool === 'bulldoze')) { dMode = 'paint'; const wp = Graphics.screenToWorld(e.clientX, e.clientY); if (wp) { const g = Graphics.worldToGrid(wp.x, wp.z); lPt = `${g.x},${g.z}`; applyToolAtGrid(g.x, g.z); } } else dMode = 'pan'; });
+          c.addEventListener('pointermove', e => { const dx = e.clientX - lx, dy = e.clientY - ly; if (Math.hypot(dx, dy) > 4) dMoved = true; if (isD) { if (dMode === 'rotate') Graphics.rotateCamera(-dx * 0.007); else if (dMode === 'pan') Graphics.panCamera(-dx * 0.042, -dy * 0.042); else if (dMode === 'paint') { const wp = Graphics.screenToWorld(e.clientX, e.clientY); if (wp) { const g = Graphics.worldToGrid(wp.x, wp.z), k = `${g.x},${g.z}`; if (k !== lPt) { lPt = k; applyToolAtGrid(g.x, g.z); } } } } lx = e.clientX; ly = e.clientY; const wp = Graphics.screenToWorld(e.clientX, e.clientY); if (wp && state) { const g = Graphics.worldToGrid(wp.x, wp.z); if (selTool && selTool !== 'power_wire') { const val = selTool === 'bulldoze' ? (g.x >= 0 && g.z >= 0 && g.x < GRID_SIZE && g.z < GRID_SIZE && !!getBuildingAt(state, g.x, g.z)) : canPlaceFootprint(state, selTool, g.x, g.z, bDir); Graphics.setHoverTile(g.x, g.z, val, bDir, BUILDINGS[selTool]); } else Graphics.setHoverTile(null, null, false, bDir, null); if (selTool === 'power_wire' && wStart) Graphics.setWirePreview(wStart, wp.x, wp.z); } });
+          c.addEventListener('pointerup', e => { try { c.releasePointerCapture(e.pointerId); } catch (_) {} if (!dMoved && state) { const wp = Graphics.screenToWorld(e.clientX, e.clientY); if (wp) { const g = Graphics.worldToGrid(wp.x, wp.z); if (selTool) { if (dMode !== 'paint') applyToolAtGrid(g.x, g.z); } else { const clk = getBuildingAt(state, g.x, g.z); if (clk) { Graphics.setSelectedBuilding(clk.id); UI.openInspector(clk); } else { const t = state.tiles[g.z]?.[g.x]; if (t?.deposit) UI.toast(`⛏ ${DEPOSIT_PALETTE[t.deposit]?.label || t.deposit} — Place matching Extractor here!`, 'sky'); Graphics.setSelectedBuilding(null); UI.closeInspector(); } } } } isD = false; dMode = null; });
           c.addEventListener('wheel', e => { e.preventDefault(); if (e.ctrlKey || Graphics.getTrackpadMode() === 'zoom') Graphics.zoomCamera(e.deltaY * 0.018); else Graphics.panCamera(e.deltaX * 0.03, e.deltaY * 0.03); }, { passive: false });
           window.addEventListener('keydown', e => { if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return; const k = e.key.toLowerCase(); kDown.add(k); if (k === 'r') rotateDir(); else if (k === 't') UI.toggleResearchModal(); else if (k === 'p') setTool(selTool === 'power_wire' ? null : 'power_wire'); else if (k === 'x') setTool(selTool === 'bulldoze' ? null : 'bulldoze'); else if (k === 'escape') { setTool(null); Graphics.setSelectedBuilding(null); UI.closeInspector(); document.getElementById('researchModal')?.classList.add('hidden'); } else if (k === 'q') Graphics.rotateCamera(-0.15); else if (k === 'e') Graphics.rotateCamera(0.15); else if (k === '=' || k === '+') Graphics.zoomCamera(-2.5); else if (k === '-' || k === '_') Graphics.zoomCamera(2.5); });
           window.addEventListener('keyup', e => kDown.delete(e.key.toLowerCase()));
         }
         function updateKeyboardPan(dt) { if (kDown.size === 0) return; const sp = 22 * dt; let dx = 0, dz = 0; if (kDown.has('w') || kDown.has('arrowup')) dz -= sp; if (kDown.has('s') || kDown.has('arrowdown')) dz += sp; if (kDown.has('a') || kDown.has('arrowleft')) dx -= sp; if (kDown.has('d') || kDown.has('arrowright')) dx += sp; if (dx !== 0 || dz !== 0) Graphics.panCamera(dx, dz); }
-        return { init, setTool, rotateDir, getSelectedTool: () => selTool, getSelectedBuildingId: () => Graphics.getSelectedBuildingId(), clearSelectedBuilding: () => Graphics.setSelectedBuilding(null), updateKeyboardPan, confirmMassDelete, selectAllForMassDelete, clearMassDeleteSelection, isMassDeleteSelected: id => massDeleteIds.has(id) };
+        return { init, setTool, rotateDir, getSelectedTool: () => selTool, getSelectedBuildingId: () => Graphics.getSelectedBuildingId(), clearSelectedBuilding: () => Graphics.setSelectedBuilding(null), updateKeyboardPan };
       })();
 
       const UI = (() => {
@@ -3187,10 +3588,10 @@
           tEl.innerHTML = ''; CATEGORIES.forEach(c => { const b = document.createElement('button'); b.className = `px-2.5 py-1 rounded-xl text-xs font-bold whitespace-nowrap transition cursor-pointer ${c.id === aCat ? 'bg-sky-500/25 border border-sky-400/55 text-white' : 'text-slate-300 hover:bg-slate-800/70 border border-transparent'}`; b.textContent = c.name; b.onclick = () => setCategory(c.id); tEl.appendChild(b); });
           sEl.innerHTML = ''; const cT = Input.getSelectedTool();
           Object.values(BUILDINGS).filter(b => b.category === aCat).forEach(d => {
-            const un = isBuildingUnlocked(state, d), ac = cT === d.id, stock = state.buildingInventory?.[d.id] || 0, cr = document.createElement('button');
+            const un = isBuildingUnlocked(state, d), ac = cT === d.id, cr = document.createElement('button');
             cr.className = `build-card shrink-0 w-36 sm:w-40 rounded-xl p-2 border text-left flex flex-col justify-between cursor-pointer ${ac ? 'active border-sky-400 bg-sky-500/20' : un ? 'border-slate-700/80 bg-slate-900/75 hover:border-slate-500' : 'border-slate-800 bg-slate-950/75 opacity-60'}`;
             let mB = !un ? `<span class="text-[10px] text-violet-300 font-semibold truncate">🔒 ${RESEARCH[d.unlock]?.name || d.unlock}</span>` : d.housingCap ? `<span class="text-[10px] text-amber-300 font-mono-num">🏠 +${d.housingCap} Beds</span>` : d.power < 0 ? `<span class="text-[10px] text-emerald-300 font-mono-num">⚡ +${-d.power} MW</span>` : d.power > 0 ? `<span class="text-[10px] text-amber-300 font-mono-num">⚡ -${d.power} MW</span>` : `<span class="text-[10px] text-slate-400">${d.w}×${d.d} Tile</span>`;
-            cr.innerHTML = `<div class="flex items-center justify-between gap-1"><span class="text-base">${d.icon}</span><span class="font-mono-num text-[11px] font-bold ${stock > 0 ? 'text-emerald-300' : d.cost === 0 ? 'text-slate-300' : 'text-emerald-400'}">${stock > 0 ? `📦 ×${stock}` : d.cost === 0 ? 'FREE' : '$' + d.cost.toLocaleString()}</span></div><div class="font-bold text-xs text-white truncate mt-1">${d.name}</div><div class="mt-0.5 flex items-center justify-between">${mB}</div>`;
+            cr.innerHTML = `<div class="flex items-center justify-between gap-1"><span class="text-base">${d.icon}</span><span class="font-mono-num text-[11px] font-bold ${d.cost === 0 ? 'text-slate-300' : 'text-emerald-400'}">${d.cost === 0 ? 'FREE' : '$' + d.cost.toLocaleString()}</span></div><div class="font-bold text-xs text-white truncate mt-1">${d.name}</div><div class="mt-0.5 flex items-center justify-between">${mB}</div>`;
             cr.onclick = () => { if (!un) toast(`Unlock "${RESEARCH[d.unlock]?.name}" first!`, 'amber'); else Input.setTool(cT === d.id ? null : d.id); }; sEl.appendChild(cr);
           });
         }
@@ -3309,7 +3710,6 @@
             else if (mLayer === 'pollution') c.fillStyle = (d?.pollution || 0) < 0 ? '#34d399' : (d?.pollution || 0) > 0 ? '#f97316' : '#64748b';
             else c.fillStyle = b.type === 'road' ? '#475569' : (d?.housingCap || 0) > 0 ? '#fbbf24' : (d?.power || 0) < 0 ? '#facc15' : '#38bdf8';
             c.fillRect(b.x * s, b.z * s, Math.max(2, w * s), Math.max(2, (dp || d?.d || 1) * s));
-            if (Input.isMassDeleteSelected(b.id)) { c.strokeStyle = '#fb7185'; c.lineWidth = 2; c.strokeRect(b.x * s + 0.5, b.z * s + 0.5, Math.max(2, w * s) - 1, Math.max(2, (dp || d?.d || 1) * s) - 1); }
           }
         }
         function updateHud() {
@@ -3385,7 +3785,7 @@
 
         function doLoadGame(payload, slot) {
           if (!payload || !payload.state) return false;
-          state = payload.state; state.buildingInventory ||= {}; nextBuildingId = payload.nextBuildingId || (state.buildings.length + 10); currentSaveSlot = slot;
+          state = payload.state; nextBuildingId = payload.nextBuildingId || (state.buildings.length + 10); currentSaveSlot = slot;
           Graphics.rebuildStaticWorld(state); renderBuildDock(); updateHud(); 
           document.getElementById('titleOverlay')?.classList.add('hidden'); 
           toast(slot === 'AUTO' ? '💾 Autosave restored!' : `💾 Loaded from Slot ${slot}!`, 'emerald'); return true;
@@ -3406,12 +3806,8 @@
           document.getElementById('btnToggleObj').onclick = e => { oCol = !oCol; document.getElementById('objBody').classList.toggle('hidden', oCol); e.target.textContent = oCol ? '+' : '−'; };
           const mc = document.getElementById('miniMapCanvas'); mc.addEventListener('pointerdown', e => { const r = mc.getBoundingClientRect(); Graphics.focusWorld(((e.clientX - r.left) / r.width) * GRID_SIZE - HALF_GRID, ((e.clientY - r.top) / r.height) * GRID_SIZE - HALF_GRID); }); document.querySelectorAll('.map-layer-btn').forEach(b => b.onclick = () => { mLayer = b.dataset.maplayer; document.querySelectorAll('.map-layer-btn').forEach(x => x.className = `map-layer-btn text-[10px] px-1.5 py-0.5 rounded cursor-pointer ${x.dataset.maplayer === mLayer ? 'bg-sky-500/30 text-sky-200 font-semibold' : 'text-slate-400 hover:text-white'}`); });
           document.getElementById('btnCamRotL').onclick = () => Graphics.rotateCamera(-0.25); document.getElementById('btnCamRotR').onclick = () => Graphics.rotateCamera(0.25); document.getElementById('btnCamZoomIn').onclick = () => Graphics.zoomCamera(-3); document.getElementById('btnCamZoomOut').onclick = () => Graphics.zoomCamera(3);
-          document.getElementById('btnCloseInspector').onclick = () => { Input.clearSelectedBuilding(); closeInspector(); }; document.getElementById('btnInspCycleRecipe').onclick = () => { const b = getBuildingById(state, Input.getSelectedBuildingId()), d = b ? BUILDINGS[b.type] : null; if (!b || !d?.recipes || d.recipes.length <= 1) return; b.activeRecipeIdx = ((b.activeRecipeIdx || 0) + 1) % d.recipes.length; b.progress = 0; SoundFX.play('wire'); updateInspector(b); }; document.getElementById('btnInspRotate').onclick = () => Input.rotateDir(); document.getElementById('btnInspRepair').onclick = () => { const b = getBuildingById(state, Input.getSelectedBuildingId()); if (!b || !state) return; if (b.condition >= 99) return toast('Already at 100%.', 'sky'); if (state.money < 40) return toast('Need $40.', 'rose'); state.money -= 40; b.condition = 100; SoundFX.play('build'); updateInspector(b); }; document.getElementById('btnInspDelete').onclick = () => { const i = Input.getSelectedBuildingId(); if (i && state && removeBuildingInState(state, i)) { SoundFX.play('delete'); Input.clearSelectedBuilding(); closeInspector(); renderBuildDock(); toast('Building returned to inventory.', 'emerald'); } };
-          document.getElementById('btnRotateTool').onclick = () => Input.rotateDir(); document.getElementById('btnCancelTool').onclick = () => Input.setTool(null);
-          document.getElementById('btnMassDeleteAll').onclick = () => Input.selectAllForMassDelete();
-          document.getElementById('btnMassDeleteClear').onclick = () => Input.clearMassDeleteSelection();
-          document.getElementById('btnMassDeleteConfirm').onclick = () => Input.confirmMassDelete();
-          document.getElementById('btnResearch').onclick = () => toggleResearchModal(); document.getElementById('btnDockResearch').onclick = () => toggleResearchModal(); document.getElementById('btnCloseResearch').onclick = () => toggleResearchModal();
+          document.getElementById('btnCloseInspector').onclick = () => { Input.clearSelectedBuilding(); closeInspector(); }; document.getElementById('btnInspCycleRecipe').onclick = () => { const b = getBuildingById(state, Input.getSelectedBuildingId()), d = b ? BUILDINGS[b.type] : null; if (!b || !d?.recipes || d.recipes.length <= 1) return; b.activeRecipeIdx = ((b.activeRecipeIdx || 0) + 1) % d.recipes.length; b.progress = 0; SoundFX.play('wire'); updateInspector(b); }; document.getElementById('btnInspRotate').onclick = () => Input.rotateDir(); document.getElementById('btnInspRepair').onclick = () => { const b = getBuildingById(state, Input.getSelectedBuildingId()); if (!b || !state) return; if (b.condition >= 99) return toast('Already at 100%.', 'sky'); if (state.money < 40) return toast('Need $40.', 'rose'); state.money -= 40; b.condition = 100; SoundFX.play('build'); updateInspector(b); }; document.getElementById('btnInspDelete').onclick = () => { const i = Input.getSelectedBuildingId(); if (i && state && removeBuildingInState(state, i)) { SoundFX.play('delete'); Input.clearSelectedBuilding(); closeInspector(); toast('Demolished.', 'amber'); } };
+          document.getElementById('btnRotateTool').onclick = () => Input.rotateDir(); document.getElementById('btnCancelTool').onclick = () => Input.setTool(null); document.getElementById('btnResearch').onclick = () => toggleResearchModal(); document.getElementById('btnDockResearch').onclick = () => toggleResearchModal(); document.getElementById('btnCloseResearch').onclick = () => toggleResearchModal();
           document.getElementById('btnAudio').onclick = e => e.target.textContent = SoundFX.toggleMute() ? '🔇' : '🔊'; 
           document.getElementById('btnSave').onclick = () => openSaveLoadModal('save'); 
           document.getElementById('btnCloseSaveLoad').onclick = () => document.getElementById('saveLoadModal').classList.add('hidden');
