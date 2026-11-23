@@ -62,8 +62,14 @@
       pt.C.push(cr * k, cg * k, cb * k);
     }
     for (let i = 0; i < uv.length; i++) pt.U.push(uv[i]);
-    for (let i = 0; i < idx.length; i++) pt.I.push(idx[i] + base);
-    this.tris += idx.length / 3;
+    let kept = 0; const same = (p, q) => Math.abs(v[p] - v[q]) < 1e-9 && Math.abs(v[p + 1] - v[q + 1]) < 1e-9 && Math.abs(v[p + 2] - v[q + 2]) < 1e-9;
+    for (let i = 0; i < idx.length; i += 3) {
+      const a = idx[i] * 3, b = idx[i + 1] * 3, c = idx[i + 2] * 3;
+      // zero-area triangle (two coincident corners, e.g. at sphere / cone poles or lathe axis points) -> skip
+      if (idx[i] === idx[i + 1] || idx[i + 1] === idx[i + 2] || idx[i] === idx[i + 2] || same(a, b) || same(b, c) || same(a, c)) continue;
+      pt.I.push(idx[i] + base, idx[i + 1] + base, idx[i + 2] + base); kept++;
+    }
+    this.tris += kept;
   };
   // quad with explicit normal, planar-projected uv by dominant axis of normal (world tile size t)
   P._quadN = function (mat, a, b, c, d, nrm, t, o) {
@@ -118,10 +124,12 @@
     return this.restore();
   };
   // ---- cylinder / frustum along +Y from base y. rt = top radius, rb = bottom radius
+  // quality scaling of explicitly requested segment counts (q2 untouched, q1 x0.85, q0 x0.6; tiny counts untouched)
+  P._qs = function (n, m) { n = n | 0; if (this.q >= 2 || n <= 8) return n; return Math.max(m || 6, Math.round(n * (this.q ? 0.85 : 0.6))); };
   P.cyl = function (mat, x, y, z, rt, rb, h, seg, o) {
-    o = o || {}; if (seg == null) seg = this.q >= 2 ? 20 : this.q ? 14 : 8; seg = Math.max(3, seg | 0);
+    o = o || {}; if (seg == null) seg = this.q >= 2 ? 20 : this.q ? 14 : 8; else seg = this._qs(seg, 6); seg = Math.max(3, seg | 0);
     this.save().move(x, y, z); if (o.ry) this.rotY(o.ry); if (o.rx) this.rotX(o.rx); if (o.rz) this.rotZ(o.rz);
-    const t = o.tile || 1, v = [], n = [], uv = [], idx = [], sl = (rb - rt) / h, ny = sl, nl = Math.sqrt(1 + sl * sl);
+    const t = o.tile || 1, v = [], n = [], uv = [], idx = [], sl = (rb - rt) / Math.max(Math.abs(h), 1e-4) * (h < 0 ? -1 : 1), ny = sl, nl = Math.sqrt(1 + sl * sl);
     const a0 = o.a0 || 0, a1 = o.a1 == null ? TAU : o.a1; o = Object.assign({}, o, { y0: 0, yh: h });
     for (let i = 0; i <= seg; i++) {
       const a = a0 + (a1 - a0) * i / seg, c = Math.cos(a), s = Math.sin(a), u = (a - a0) * Math.max(rt, rb) / t;
@@ -145,17 +153,17 @@
   P.cone = function (mat, x, y, z, r, h, seg, o) { return this.cyl(mat, x, y, z, 0, r, h, seg, o); };
   // ---- sphere (full or dome). o: {sy (y scale), dome:true => upper hemisphere only}
   P.sphere = function (mat, x, y, z, r, ws, hs, o) {
-    o = o || {}; ws = ws || (this.q >= 2 ? 20 : this.q ? 14 : 8); hs = hs || Math.max(4, ws >> 1); const sy = o.sy || 1, t = o.tile || 1;
+    o = o || {}; ws = ws ? this._qs(ws, 6) : (this.q >= 2 ? 20 : this.q ? 14 : 8); hs = hs ? this._qs(hs, 4) : Math.max(4, ws >> 1); const sy = o.sy || 1, t = o.tile || 1;
     this.save().move(x, y, z); if (o.ry) this.rotY(o.ry); if (o.rx) this.rotX(o.rx); if (o.rz) this.rotZ(o.rz);
     const th1 = o.dome ? PI / 2 : PI, v = [], n = [], uv = [], idx = []; o = Object.assign({}, o, { y0: -r * sy, yh: 2 * r * sy });
     for (let j = 0; j <= hs; j++) { const th = th1 * j / hs, st = Math.sin(th), ct = Math.cos(th); for (let i = 0; i <= ws; i++) { const ph = TAU * i / ws, cp = Math.cos(ph), sp = Math.sin(ph);
       v.push(r * st * cp, r * ct * sy, r * st * sp); const nx = st * cp, ny = ct / sy, nz = st * sp, l = Math.hypot(nx, ny, nz); n.push(nx / l, ny / l, nz / l); uv.push(ph * r / t, th * r / t); } }
-    for (let j = 0; j < hs; j++) for (let i = 0; i < ws; i++) { const a = j * (ws + 1) + i, b = a + ws + 1; idx.push(a, a + 1, b, a + 1, b + 1, b); }
+    for (let j = 0; j < hs; j++) for (let i = 0; i < ws; i++) { const a = j * (ws + 1) + i, b = a + ws + 1; if (sy < 0) idx.push(a, b, a + 1, a + 1, b, b + 1); else idx.push(a, a + 1, b, a + 1, b + 1, b); }
     this._emit(mat, v, n, uv, idx, o); return this.restore();
   };
   // ---- torus in XZ plane (axis Y) centred at x,y,z ; rotate via o.rx/o.rz for other axes
   P.torus = function (mat, x, y, z, R, r, rs, ts, o) {
-    o = o || {}; rs = rs || (this.q >= 2 ? 10 : 6); ts = ts || (this.q >= 2 ? 36 : this.q ? 24 : 14); const t = o.tile || 1; if (o.arc == null) { ts = Math.min(ts, Math.max(8, Math.round(R * (this.q >= 2 ? 130 : this.q ? 100 : 70)))); if (r < 0.012 && rs > 3) rs = Math.max(3, rs - 1); }
+    o = o || {}; rs = rs ? (rs > 4 && this.q < 2 ? Math.max(4, Math.round(rs * (this.q ? 0.85 : 0.7))) : rs) : (this.q >= 2 ? 10 : 6); ts = ts ? this._qs(ts, 8) : (this.q >= 2 ? 36 : this.q ? 24 : 14); const t = o.tile || 1; if (o.arc == null) { ts = Math.min(ts, Math.max(8, Math.round(R * (this.q >= 2 ? 130 : this.q ? 100 : 70)))); if (r < 0.012 && rs > 3) rs = Math.max(3, rs - 1); }
     this.save().move(x, y, z); if (o.ry) this.rotY(o.ry); if (o.rx) this.rotX(o.rx); if (o.rz) this.rotZ(o.rz);
     const v = [], n = [], uv = [], idx = [], a1 = o.arc == null ? TAU : o.arc; o = Object.assign({}, o, { y0: -r, yh: 2 * r });
     for (let i = 0; i <= ts; i++) { const a = a1 * i / ts, ca = Math.cos(a), sa = Math.sin(a); for (let j = 0; j <= rs; j++) { const b = TAU * j / rs, cb = Math.cos(b), sb = Math.sin(b);
@@ -165,7 +173,7 @@
   };
   // ---- lathe: profile [[radius,y],...] revolved about Y (smooth normals). o.flat => faceted
   P.lathe = function (mat, x, y, z, prof, seg, o) {
-    o = o || {}; seg = seg || (this.q >= 2 ? 28 : this.q ? 18 : 10); const t = o.tile || 1; this.save().move(x, y, z); if (o.ry) this.rotY(o.ry);
+    o = o || {}; seg = seg ? this._qs(seg, 8) : (this.q >= 2 ? 28 : this.q ? 18 : 10); const t = o.tile || 1; this.save().move(x, y, z); if (o.ry) this.rotY(o.ry);
     const v = [], n = [], uv = [], idx = [], L = prof.length; let acc = 0; const lens = [0]; for (let i = 1; i < L; i++) { acc += Math.hypot(prof[i][0] - prof[i - 1][0], prof[i][1] - prof[i - 1][1]); lens.push(acc); }
     const ys = prof.map(p => p[1]); o = Object.assign({}, o, { y0: Math.min.apply(null, ys), yh: Math.max(0.001, Math.max.apply(null, ys) - Math.min.apply(null, ys)) });
     const pn = []; for (let i = 0; i < L; i++) { const a = prof[Math.max(0, i - 1)], b = prof[Math.min(L - 1, i + 1)]; let dx = b[0] - a[0], dy = b[1] - a[1]; const l = Math.hypot(dx, dy) || 1; pn.push([dy / l, -dx / l]); }
@@ -410,6 +418,8 @@
     glowGreen:  { c: 0x0a1a05, m: 0, r: 0.4, em: 0x8cff30, emI: 1.8 },
     glowPurple: { c: 0x10051a, m: 0, r: 0.4, em: 0xb060ff, emI: 1.9 },
     glowPink:   { c: 0x1a0510, m: 0, r: 0.4, em: 0xff60b0, emI: 1.8 },
+    glowMagenta:{ c: 0x1a0014, m: 0, r: 0.4, em: 0xff16c0, emI: 1.45 },
+    glowSun:    { c: 0x1a0c00, m: 0, r: 0.4, em: 0xff9410, emI: 1.3 },
     glowWhite:  { c: 0x1a1a1a, m: 0, r: 0.4, em: 0xffffff, emI: 1.6 },
     glowAmber:  { c: 0x1a1205, m: 0, r: 0.4, em: 0xffb020, emI: 1.8 }
   };
@@ -924,7 +934,7 @@
     // wellhead tree (back-left) in a guarded cellar with an animated gate-valve wheel
     F.cyl('concrete', -0.62, y0, 0.55, 0.18, 0.18, 0.03, 18, { c: 0x9aa1ab }); P.wellhead(F, -0.62, y0 + 0.03, 0.55, 0.55); P.railRect(F, -0.8, 0.37, -0.44, 0.73, y0, 0.12);
     F.pipe('paint', [[-0.62, y0 + 0.36, 0.55], [-0.62, y0 + 0.36, 0.2], [-0.3, y0 + 0.36, 0.2], [-0.3, y0 + 0.36, -0.1]], 0.022, { c: 0x6b7280 }); F.cylZ('steel', -0.3, y0 + 0.36, -0.11, 0.03, 0.02, 10);
-    F.cyl('steel', -0.46, y0 + 0.36, 0.2, 0.015, 0.015, 0.0, 6); F.cyl('steel', -0.46, y0 + 0.378, 0.2, 0.01, 0.01, 0.07, 8); F.anim('gw', [-0.46, y0 + 0.455, 0.2], 'spin', S => { S.torus('paint', 0, 0, 0, 0.048, 0.008, 5, 18, { c: 0xdc2626 }); S.box('paint', 0, 0, 0, 0.096, 0.008, 0.008, { c: 0xdc2626 }); S.box('paint', 0, 0, 0, 0.008, 0.008, 0.096, { c: 0xdc2626 }); }, { axis: 'y', speed: 0.9 });
+    F.cyl('steel', -0.46, y0 + 0.36, 0.2, 0.015, 0.015, 0.018, 6); F.cyl('steel', -0.46, y0 + 0.378, 0.2, 0.01, 0.01, 0.07, 8); F.anim('gw', [-0.46, y0 + 0.455, 0.2], 'spin', S => { S.torus('paint', 0, 0, 0, 0.048, 0.008, 5, 18, { c: 0xdc2626 }); S.box('paint', 0, 0, 0, 0.096, 0.008, 0.008, { c: 0xdc2626 }); S.box('paint', 0, 0, 0, 0.008, 0.008, 0.096, { c: 0xdc2626 }); }, { axis: 'y', speed: 0.9 });
     // 3-phase separator on saddles + safety valve stack + out line
     P.hVessel(F, -0.05, y0, -0.1, 0.8, 0.12, WH, 0); F.box('hazard', 0.15, y0 + 0.2, -0.1 + 0.121, 0.05, 0.2, 0.004, { tile: 0.2 }); F.box('paint', -0.05, y0 + 0.2, -0.1 + 0.121, 0.18, 0.05, 0.004, { c: 0x2563eb });
     F.pipe('steelDark', [[0.2, y0 + 0.33, -0.1], [0.2, y0 + 0.46, -0.1], [0.28, y0 + 0.46, -0.1]], 0.014); F.cyl('paint', 0.2, y0 + 0.41, -0.1, 0.028, 0.028, 0.04, 10, { c: 0xdc2626 });
@@ -1464,7 +1474,7 @@
     for (let i = 0; i <= n; i++) { const t = i / n, r = 0.03 + (len - 0.03) * t, ch = c0 + (c1 - c0) * Math.pow(t, 0.7) + (t < 0.15 ? 0.015 : 0), tw = (1 - t) * 0.45, th = ch * (0.22 - 0.1 * t), cx = ch * 0.3;
       const pts = [[-cx, 0], [0, th], [ch - cx, 0], [0, -th]].map(([px, pz]) => { const c = Math.cos(tw), s = Math.sin(tw); return [px * c - pz * s, r, px * s + pz * c]; }); secs.push(pts); }
     for (let i = 0; i < n; i++) for (let k = 0; k < 4; k++) { const A = secs[i][k], B = secs[i][(k + 1) % 4], C = secs[i + 1][(k + 1) % 4], D = secs[i + 1][k];
-      const mid = [(A[0] + B[0] + C[0] + D[0]) / 4, (A[1] + B[1] + C[1] + D[1]) / 4, (A[2] + B[2] + C[2] + D[2]) / 4], cen = [0, mid[1], 0]; let nn = crs(sub(B, A), sub(D, A)); if (nn[0] * (mid[0] - cen[0]) + nn[1] * 0 + nn[2] * (mid[2] - cen[2]) < 0) nn = [-nn[0], -nn[1], -nn[2]];
+      const mid = [(A[0] + B[0] + C[0] + D[0]) / 4, (A[1] + B[1] + C[1] + D[1]) / 4, (A[2] + B[2] + C[2] + D[2]) / 4], cen = [0, mid[1], 0]; let nn = crs(sub(B, A), sub(D, A)); if (nn[0] * (mid[0] - cen[0]) + nn[1] * 0 + nn[2] * (mid[2] - cen[2]) < 0) nn = [-nn[0], -nn[1], -nn[2]]; { const nl = Math.hypot(nn[0], nn[1], nn[2]) || 1; nn = [nn[0] / nl, nn[1] / nl, nn[2] / nl]; }
       S._quadN('paint', A, B, C, D, nn, 1, { c: i >= n - 2 ? 0xd7322b : (o.c || 0xf2f4f6) }); }
     const tp = secs[n]; S._triN('paint', tp[0], tp[1], tp[2], [0, 1, 0], 1, { c: 0xd7322b }); S._triN('paint', tp[0], tp[2], tp[3], [0, 1, 0], 1, { c: 0xd7322b });
   };
@@ -1742,7 +1752,7 @@
     F.anim('kiln', [0.1, ky + 0.0, kz], 'spin', S => {
       S.cyl('steel', 0, -L / 2, 0, R, R, L, seg, { c: 0xaab3bf }); for (const y of [-0.45, -0.12, 0.35]) S.cyl('steelDark', 0, y - 0.06, 0, R + 0.03, R + 0.03, 0.12, seg, { c: 0x6a7482 });
       S.cyl('steelDark', 0, 0.06, 0, R + 0.05, R + 0.05, 0.05, seg, { c: 0x8a95a3 }); if (q >= 1) for (let i = 0; i < 20; i++) { const a = i * TAU / 20; S.box('steel', Math.cos(a) * (R + 0.055), 0.085, Math.sin(a) * (R + 0.055), 0.012, 0.05, 0.018, { ry: -a, c: 0xc2c9d3 }); }
-      S.box('paint', R + 0.003, 0, 0, 0.004, L * 0.9, 0.05, { c: 0xe6b422 }); S.box('paint', -R - 0.003, 0.1, 0, 0.004, 0.35, 0.04, { c: 0xdc2626 });
+      S.box('paint', R + 0.003, -L * 0.45, 0, 0.004, L * 0.9, 0.05, { c: 0xe6b422 }); S.box('paint', -R - 0.003, 0.1, 0, 0.004, 0.35, 0.04, { c: 0xdc2626 });
     }, { axis: 'y', speed: 0.5, rot: [0, 0, PI / 2 + 0.06] });
     // hot end: hood, burner flame, grate cooler; cold end feed
     F.box('steelDark', 0.83, y0 + 0.03, kz, 0.2, 0.42, 0.4, { bev: 0.01, c: 0x7d8896 }); F.cylX('steel', 0.935, ky - 0.0, kz, 0.065, 0.1, 10, { c: 0xaab3bf }); P.flame(F, 0.85, ky - 0.04, kz, 1.2, 'orange'); F.box('glowOrange', 0.932, ky + 0.04, kz + 0.1, 0.006, 0.05, 0.05); F.box('steel', 0.83, y0 + 0.45, kz, 0.22, 0.02, 0.42, { c: 0xaab3bf }); P.platform(F, 0.83, y0 + 0.47, kz, 0.2, 0.36, { norail: false }); P.ladder(F, 0.72, y0, kz + 0.23, 0.47, 0, false);
@@ -2223,6 +2233,567 @@
   });
 })(typeof window !== 'undefined' ? window : globalThis);
 
+/* ---- models_tech1.js ---- */
+/* High-tech I: electronics_fab (3x2), superconductor_lab (3x2), turbine_works (3x2), graphene_loom (3x2). IN = +Z edge, OUT = -Z edge. */
+(function (root) {
+  'use strict';
+  const M = root.IEModels, P = root.IEParts, W = P.W, PI = Math.PI, TAU = PI * 2, reg = (t, w, d, f, v) => M.reg(t, w, d, f, v);
+  if (!W) return; const { car, lamppost, solar, H } = W;
+  const foup = (F, x, y, z, c) => { F.box('paint', x, y, z, 0.07, 0.08, 0.07, { c: c || 0xeef2f7, bev: 0.006 }); F.box('glassTint', x, y + 0.02, z + 0.036, 0.05, 0.04, 0.004); F.box('steelDark', x, y + 0.08, z, 0.04, 0.01, 0.03); };
+  const fanBlades = (S, r, n) => { for (let i = 0; i < n; i++) S.box('steelDark', Math.cos(i * TAU / n) * r * 0.5, 0, Math.sin(i * TAU / n) * r * 0.5, r, 0.006, r * 0.26, { ry: -i * TAU / n }); };
+  const bund = (F, x, y, z, w, d, h) => { for (const s of [-1, 1]) { F.box('concrete', x, y, z + s * d / 2, w, h, 0.03, { c: 0x8a919b }); F.box('concrete', x + s * w / 2, y, z, 0.03, h, d, { c: 0x8a919b }); } };
+  const label = (F, x, y, z, ry, c) => F.at(x, y, z, ry || 0, f => { f.box('paint', 0, 0, 0, 0.06, 0.04, 0.004, { c: 0xf8f8f8 }); f.box('paint', 0, 0.008, 0.003, 0.024, 0.024, 0.002, { c: c || 0xe6b422, ry: PI / 4 }); });
+
+  // ------------------------------------------------------------------ semiconductor fab: graphite hall with amber "yellow room" windows, scrubber battery, giant IC sculpture, glass office, chemical bund, parking
+  reg('electronics_fab', 3, 2, F => {
+    const y0 = P.slab(F, 3, 2, { drains: [[-0.2, 0.9], [1.2, 0.9]] }), q = F.q, ac = 0x38bdf8, hx = -0.45, hz = -0.42, hw = 1.95, hd = 0.8, wz = hz + hd / 2;
+    const fy = P.hall(F, hx, hz, hw, hd, 0.55, { c: 0x3a4554, trim: ac, mat: 'panel' }), ty = fy + 0.03;
+    F.box('concrete', hx, fy, hz, hw + 0.04, 0.03, hd + 0.04, { c: 0x7d848f }); F.at(hx, 0, hz, 0, f => P.parapet(f, hw + 0.03, hd + 0.03, ty, 0.05, 0xd4d9e0));
+    // yellow-room windows (tool silhouettes against amber light)
+    for (const [cx, w] of [[-0.95, 0.9], [0.24, 0.4]]) { F.box('steelDark', cx, y0 + 0.1, wz + 0.004, w + 0.02, 0.27, 0.012); F.box('glowAmber', cx, y0 + 0.115, wz + 0.01, w, 0.23, 0.004); const n = Math.round(w / 0.115); for (let i = 0; i < n; i++) F.box('black', cx - w / 2 + (i + 0.5) * w / n, y0 + 0.118, wz + 0.013, 0.05, 0.07 + 0.045 * ((i * 7 + (cx > 0 ? 3 : 0)) % 3), 0.004); for (let i = 0; i <= n; i++) F.box('steelDark', cx - w / 2 + i * w / n, y0 + 0.1, wz + 0.016, 0.008, 0.27, 0.006); }
+    F.box('glowBlue', hx, y0 + 0.47, wz + 0.004, hw - 0.04, 0.012, 0.006); F.box('glowBlue', hx - hw / 2 - 0.004, y0 + 0.47, hz, 0.006, 0.012, hd - 0.04);
+    P.windows(F, -1.425, y0 + 0.16, hz, 0.6, 0.16, 3, -PI / 2); P.windows(F, -0.9, y0 + 0.16, hz - hd / 2, 0.9, 0.16, 5, PI); P.windows(F, 0.15, y0 + 0.16, hz - hd / 2, 0.6, 0.16, 3, PI);
+    P.roller(F, -0.2, y0 + 0.05, wz, 0.3, 0.26, 0, 0xc4ccd6); P.roller(F, -0.2, y0 + 0.05, hz - hd / 2, 0.3, 0.26, PI, 0xc4ccd6);
+    P.conveyor(F, [-0.2, y0 + 0.08, 0.99], [-0.2, y0 + 0.08, wz + 0.03], 0.14, { floor: y0 }); P.conveyor(F, [-0.2, y0 + 0.08, hz - hd / 2 - 0.02], [-0.2, y0 + 0.08, -0.99], 0.14, { floor: y0 });
+    for (let i = 0; i < 3; i++) foup(F, -0.2, y0 + 0.095, 0.82 - i * 0.2, i % 2 ? 0xdbeafe : 0xeef2f7); for (let i = 0; i < 2; i++) F.box('paint', -0.2, y0 + 0.095, -0.88 - i * 0.05 + 0.0, 0.08, 0.025, 0.04, { c: 0x1e293b });
+    // roof: scrubber battery + header duct + exhaust stack, AHUs, chillers with spinning fans, IC chip sculpture
+    for (let i = 0; i < 5; i++) { const x = -1.25 + i * 0.26; F.cyl('steel', x, ty, -0.62, 0.072, 0.072, 0.24, 14, { c: 0xdfe5ec }); F.sphere('steel', x, ty + 0.24, -0.62, 0.072, 12, 5, { dome: true, c: 0xdfe5ec }); F.torus('steelDark', x, ty + 0.09, -0.62, 0.074, 0.006, 3, 14); F.torus('steelDark', x, ty + 0.18, -0.62, 0.074, 0.006, 3, 14); F.box('steel', x, ty + 0.3, -0.62, 0.022, 0.1, 0.022, { c: 0xaab3bf }); }
+    F.box('steel', -0.68, ty + 0.4, -0.62, 1.4, 0.045, 0.045, { c: 0xaab3bf }); P.stack(F, 0.06, ty, -0.62, 0.05, 0.04, 0.5, { bands: 2, plain: true, c: 0xc2c9d3, steam: true }); F.box('steel', 0.03, ty + 0.4, -0.62, 0.08, 0.045, 0.045, { c: 0xaab3bf });
+    P.hvac(F, -1.2, ty, -0.22, 0.3, 0.18, 0.1, 0); P.hvac(F, -0.88, ty, -0.22, 0.3, 0.18, 0.1, 0);
+    for (const x of [0.12, 0.34]) { F.cyl('steel', x, ty, -0.25, 0.09, 0.09, 0.1, 16, { c: 0xdfe5ec }); F.cyl('black', x, ty + 0.1, -0.25, 0.085, 0.085, 0.008, 16); F.anim('fan', [x, ty + 0.108, -0.25], 'spin', S => fanBlades(S, 0.15, 3), { axis: 'y', speed: 7 }); }
+    for (let i = 0; i < 4; i++) for (let j = 0; j < 2; j++) { F.box('panel', 0.0 + i * 0.1 + 0.05, ty, -0.44 + j * 0.0 + 0.0, 0.08, 0.04, 0.1, { c: 0xdfe5ec }); }
+    const cx = -0.4, cz = -0.28, cy = ty + 0.09, cs = 0.34; for (const sx of [-1, 1]) for (const sz of [-1, 1]) F.box('steelDark', cx + sx * 0.12, ty, cz + sz * 0.12, 0.02, 0.09, 0.02);
+    F.box('black', cx, cy, cz, cs, 0.045, cs, { bev: 0.008 }); F.box('steelDark', cx, cy + 0.045, cz, 0.22, 0.008, 0.22); for (const [s, t] of [[0.17, 0.008], [0.12, 0.006]]) { for (const k of [-1, 1]) { F.box('glowBlue', cx, cy + 0.054, cz + k * s / 2 + 0, s, 0.004, t); F.box('glowBlue', cx + k * s / 2, cy + 0.054, cz, t, 0.004, s); } }
+    const np = q >= 2 ? 9 : q >= 1 ? 7 : 5; for (let i = 0; i < np; i++) { const o = -cs / 2 + (i + 0.5) * cs / np; for (const k of [-1, 1]) { F.box('gold', cx + o, cy + 0.012, cz + k * (cs / 2 + 0.022), 0.014, 0.008, 0.05); F.box('gold', cx + k * (cs / 2 + 0.022), cy + 0.012, cz + o, 0.05, 0.008, 0.014); } } F.cyl('glowBlue', cx - 0.14, cy + 0.046, cz - 0.14, 0.012, 0.012, 0.004, 8);
+    // glass office block with lobby, rooftop PV and plant
+    const ox = 1.0, oz = -0.37, ow = 0.9, od = 0.9, oh = 0.6, oy = y0 + 0.03 + oh;
+    F.box('concrete', ox, y0, oz, ow + 0.04, 0.03, od + 0.04, { c: 0xa9aeb6 }); F.box('facade', ox, y0 + 0.03, oz, ow, oh, od, { tile: 0.4, bev: 0.006, c: 0xb7d4ea }); F.box('concrete', ox, oy, oz, ow + 0.04, 0.02, od + 0.04, { c: 0x9aa1ab }); F.at(ox, 0, oz, 0, f => P.parapet(f, ow + 0.03, od + 0.03, oy + 0.02, 0.04, 0xd4d9e0));
+    F.box('glowBlue', ox, oy - 0.02, oz + od / 2 + 0.004, ow, 0.012, 0.006); F.box('glassTint', ox, y0 + 0.04, oz + od / 2 + 0.003, 0.6, 0.17, 0.006); for (let i = 0; i <= 4; i++) F.box('steelDark', ox - 0.3 + i * 0.15, y0 + 0.04, oz + od / 2 + 0.006, 0.008, 0.17, 0.006); F.box('paint', ox, y0 + 0.22, oz + od / 2 + 0.08, 0.7, 0.02, 0.18, { c: ac, bev: 0.004 }); for (const s of [-1, 1]) F.box('steelDark', ox + s * 0.33, y0, oz + od / 2 + 0.15, 0.014, 0.22, 0.014);
+    solar(F, ox - 0.2, oy + 0.02, oz - 0.12, 0.36, 0.2, -0.3); solar(F, ox + 0.2, oy + 0.02, oz - 0.12, 0.36, 0.2, -0.3); P.hvac(F, ox - 0.2, oy + 0.02, oz + 0.25, 0.22, 0.14, 0.08, 0); P.hvac(F, ox + 0.15, oy + 0.02, oz + 0.25, 0.22, 0.14, 0.08, 0); P.mast(F, ox + 0.38, oz - 0.38, 0.35, 0, oy + 0.02);
+    // chemical bund: acid / DI water tanks, scrubber vessel, gas cylinder rack, pipe bridge to the hall
+    bund(F, -1.05, y0, 0.55, 0.8, 0.78, 0.05); P.tank(F, -1.22, y0, 0.42, 0.13, 0.5, { roof: 'dome', c: 0xe9edf2, rings: 3 }); P.tank(F, -0.88, y0, 0.4, 0.11, 0.4, { roof: 'cone', c: 0x93c5fd, rings: 2 }); P.hVessel(F, -1.05, y0 + 0.1, 0.76, 0.46, 0.09, 0xd4d9e0, 0); label(F, -1.22, y0 + 0.1, 0.55, 0, 0xdc2626); label(F, -0.88, y0 + 0.08, 0.51, 0, 0x3b82f6);
+    for (let i = 0; i < 6; i++) { const cols = [0x2563eb, 0xdc2626, 0xfacc15, 0x16a34a, 0x7c3aed, 0xdfe5ec]; F.cyl('paint', -0.72 + (i % 3) * 0.07, y0, 0.84 - ((i / 3) | 0) * 0.07, 0.026, 0.026, 0.17, 8, { c: cols[i] }); }
+    for (const z of [0.3, 0.12]) F.box('steelDark', -1.05, y0, z, 0.02, 0.32, 0.02); F.pipe('steel', [[-1.22, y0 + 0.5, 0.42], [-1.22, y0 + 0.62, 0.42], [-1.22, y0 + 0.62, 0.0]], 0.014, { c: 0xe6b422 }); F.pipe('steel', [[-0.88, y0 + 0.4, 0.4], [-0.88, y0 + 0.55, 0.4], [-0.88, y0 + 0.55, 0.0]], 0.014, { c: 0x3b82f6 });
+    // parking
+    F.box('asphalt', 1.0, y0, 0.58, 0.9, 0.008, 0.72, { tile: 1, c: 0x3a3f47 }); for (let i = 0; i <= 3; i++) F.box('paint', 0.55 + i * 0.3, y0 + 0.008, 0.45, 0.006, 0.002, 0.24, { c: 0xf8f8f8 }); for (let i = 0; i <= 3; i++) F.box('paint', 0.55 + i * 0.3, y0 + 0.008, 0.78, 0.006, 0.002, 0.2, { c: 0xf8f8f8 });
+    car(F, 0.7, y0 + 0.008, 0.45, 0, 0xe63946); car(F, 1.0, y0 + 0.008, 0.45, 0, 0xdfe5ec); car(F, 1.3, y0 + 0.008, 0.45, PI, 0x3b82f6); car(F, 0.85, y0 + 0.008, 0.78, PI, 0x2a2a2a); lamppost(F, 0.58, y0, 0.92, 0.3); lamppost(F, 1.42, y0, 0.92, 0.3); F.light(0.58, y0 + 0.32, 0.92, [1, 0.9, 0.6], 0.5);
+    P.mast(F, 0.1, 0.95, 0.5, PI); F.light(-0.45, y0 + 0.2, 0.2, [1, 0.7, 0.2], 0.8); F.light(1.0, y0 + 0.3, 0.2, [0.3, 0.7, 1], 0.6);
+    // receiving yard: hazard markings, forklift with FOUP pallet, staged pods, bollards, substation
+    F.box('hazard', -0.2, y0 + 0.001, 0.3, 0.36, 0.003, 0.05); for (const x of [-0.42, 0.02]) for (const z of [0.28, 0.6]) F.cyl('paint', x, y0, z, 0.012, 0.012, 0.06, 8, { c: 0xe6b422 });
+    P.forklift(F, -0.6, y0, 0.62, 0, 0xf2b705); P.pallet(F, -0.6, y0, 0.45, 0.14, 0.12); foup(F, -0.64, y0 + 0.03, 0.45, 0xdbeafe); foup(F, -0.56, y0 + 0.03, 0.45); P.pallet(F, 0.05, y0, 0.84, 0.16, 0.14); for (let i = 0; i < 2; i++) for (let j = 0; j < 2; j++) foup(F, 0.0 + j * 0.08, y0 + 0.03 + i * 0.08, 0.84, (i + j) % 2 ? 0xdbeafe : 0xeef2f7);
+    P.transformer(F, 0.32, y0, 0.45, 0); F.box('paint', 0.32, y0, 0.72, 0.1, 0.12, 0.07, { c: 0xdfe5ec, bev: 0.006 }); F.box('steelDark', 0.32, y0 + 0.02, 0.757, 0.07, 0.08, 0.004); P.fence(F, 0.16, 0.3, 0.46, 0.3, y0, 0.07); P.fence(F, 0.16, 0.82, 0.46, 0.82, y0, 0.07); P.fence(F, 0.16, 0.3, 0.16, 0.82, y0, 0.07);
+  });
+
+  // ------------------------------------------------------------------ cryo-superconductor lab: white hall, helium gasholder, three frosted dewar towers, LN2 spheres, maglev ring with levitation demo
+  reg('superconductor_lab', 3, 2, F => {
+    const y0 = P.slab(F, 3, 2, { drains: [[-0.3, 0.9], [1.2, 0.9]] }), q = F.q, ac = 0x22d3ee, hx = -0.7, hz = -0.5, hw = 1.5, hd = 0.8, wz = hz + hd / 2;
+    const fy = P.hall(F, hx, hz, hw, hd, 0.5, { c: 0xeef3f8, trim: ac, mat: 'panel' }), ty = fy + 0.03;
+    F.box('concrete', hx, fy, hz, hw + 0.04, 0.03, hd + 0.04, { c: 0xc9d0d9 }); F.at(hx, 0, hz, 0, f => P.parapet(f, hw + 0.03, hd + 0.03, ty, 0.05, 0xf2f6fa));
+    P.windows(F, -1.0, y0 + 0.16, wz, 0.7, 0.18, 4, 0); P.windows(F, -1.45, y0 + 0.16, hz, 0.6, 0.18, 3, -PI / 2); P.windows(F, -0.7, y0 + 0.16, hz - hd / 2, 1.0, 0.18, 5, PI);
+    F.box('glowCyan', hx, y0 + 0.45, wz + 0.004, hw - 0.04, 0.012, 0.006); F.box('glowCyan', hx - hw / 2 - 0.004, y0 + 0.45, hz, 0.006, 0.012, hd - 0.04);
+    P.roller(F, -0.2, y0 + 0.05, wz, 0.26, 0.24, 0, 0xc4ccd6); P.roller(F, -0.2, y0 + 0.05, hz - hd / 2, 0.26, 0.24, PI, 0xc4ccd6);
+    P.conveyor(F, [-0.2, y0 + 0.08, 0.99], [-0.2, y0 + 0.08, wz + 0.03], 0.14, { floor: y0 }); P.conveyor(F, [-0.2, y0 + 0.08, hz - hd / 2 - 0.02], [-0.2, y0 + 0.08, -0.99], 0.14, { floor: y0 });
+    // roof: helium gasholder bag, cryocoolers with hoses, vapour vents
+    F.sphere('paint', -1.0, ty, -0.52, 0.24, 18, 6, { dome: true, sy: 0.55, c: 0xf2f6fa }); F.torus('steel', -1.0, ty + 0.004, -0.52, 0.24, 0.008, 3, 22, { c: 0xc2c9d3 }); for (let i = 0; i < 4; i++) F.torus('steel', -1.0, ty + 0.01, -0.52, 0.2 - i * 0.045, 0.003, 3, 18, { c: 0xdfe5ec });
+    for (const x of [-0.55, -0.35, -0.15]) { F.cyl('paint', x, ty, -0.3, 0.05, 0.05, 0.16, 12, { c: 0xf2f6fa }); F.cyl('copper', x, ty + 0.16, -0.3, 0.036, 0.036, 0.05, 10); F.cyl('steel', x, ty + 0.21, -0.3, 0.02, 0.02, 0.04, 8); F.pipe('steelDark', [[x, ty + 0.1, -0.25], [x, ty + 0.05, -0.17], [x, ty + 0.03, -0.1]], 0.011); }
+    for (const x of [-0.4, -0.12]) { F.cyl('steel', x, ty, -0.72, 0.03, 0.03, 0.22, 8, { c: 0xdfe5ec }); F.torus('steelDark', x, ty + 0.2, -0.72, 0.032, 0.005, 3, 8); F.cyl('steelDark', x, ty + 0.22, -0.72, 0.038, 0.038, 0.012, 8); } P.hvac(F, -0.72, ty, -0.76, 0.24, 0.12, 0.08, 0);
+    // dewar towers on plinths, frost bands, catwalk, stairs, transfer-line manifold
+    for (const [x, h] of [[0.48, 0.78], [0.88, 1.0], [1.28, 0.78]]) {
+      F.cyl('concrete', x, y0, -0.5, 0.2, 0.2, 0.04, 20, { c: 0x9aa1ab }); F.cyl('paint', x, y0 + 0.04, -0.5, 0.15, 0.15, h, 22, { c: 0xf2f6fa }); F.cyl('glowCyan', x, y0 + 0.05, -0.5, 0.153, 0.153, 0.025, 22); for (let k = 1; k < 4; k++) F.torus('steel', x, y0 + 0.04 + h * k / 4, -0.5, 0.152, 0.007, 3, 22, { c: 0xc2c9d3 });
+      F.sphere('paint', x, y0 + 0.04 + h, -0.5, 0.15, 16, 6, { dome: true, c: 0xf2f6fa }); F.cyl('steel', x, y0 + 0.04 + h + 0.14, -0.5, 0.028, 0.028, 0.06, 8, { c: 0xc2c9d3 }); F.cyl('steelDark', x, y0 + 0.04 + h + 0.2, -0.5, 0.036, 0.036, 0.012, 8); F.emitter(x, y0 + 0.04 + h + 0.23, -0.5, 0.06, true);
+      F.pipe('alu', [[x, y0 + 0.12, -0.2], [x, y0 + 0.12, -0.34]], 0.017, { c: 0xdfe8f0 }); F.torus('steel', x, y0 + 0.12, -0.3, 0.022, 0.006, 3, 8, { rx: PI / 2 }); F.torus('steel', x, y0 + 0.04 + h * 0.5, -0.35, 0.03, 0.006, 3, 8, { rx: PI / 2 });
+    }
+    F.pipe('alu', [[0.05, y0 + 0.12, -0.2], [1.28, y0 + 0.12, -0.2]], 0.022, { c: 0xdfe8f0 }); for (let i = 0; i < 6; i++) F.torus('steel', 0.2 + i * 0.2, y0 + 0.12, -0.2, 0.026, 0.006, 3, 8, { rz: PI / 2 }); F.pipe('alu', [[0.05, y0 + 0.12, -0.2], [0.05, y0 + 0.12, -0.0]], 0.022, { c: 0xdfe8f0 });
+    P.platform(F, 0.88, y0 + 0.62, -0.74, 1.05, 0.1, { legs: 0.62 }); P.ladder(F, 1.4, y0, -0.7, 0.62, 0, true); F.light(0.88, y0 + 0.5, -0.3, [0.3, 0.9, 1], 0.9);
+    // LN2 spheres on leg frames, ammonia bullet
+    for (const [x, z] of [[-1.15, 0.52], [-0.7, 0.52]]) { const r = 0.19, cy = y0 + 0.17 + r; F.sphere('paint', x, cy, z, r, 18, 12, { c: 0xf2f6fa }); F.torus('steel', x, cy, z, r + 0.002, 0.008, 3, 24, { c: 0xc2c9d3 }); for (let i = 0; i < 6; i++) { const a = i * TAU / 6 + 0.3; F.beam('steel', [x + Math.cos(a) * 0.16, y0, z + Math.sin(a) * 0.16], [x + Math.cos(a) * 0.14, cy - 0.02, z + Math.sin(a) * 0.14], 0.014, { c: 0xaab3bf }); } F.torus('steel', x, y0 + 0.1, z, 0.158, 0.006, 3, 16, { c: 0xaab3bf }); F.cyl('steel', x, cy + r, z, 0.022, 0.022, 0.06, 8); if (x < -0.9) F.emitter(x, cy + r + 0.08, z, 0.05, true); F.cyl('glowCyan', x, y0 + 0.15, z, 0.2, 0.2, 0.012, 18); }
+    P.ladder(F, -0.92, y0, 0.52, 0.55, 0, false); P.hVessel(F, -0.95, y0 + 0.11, 0.86, 0.5, 0.09, 0xe9edf2, 0); F.torus('paint', -0.95, y0 + 0.11, 0.86, 0.092, 0.01, 3, 12, { rz: PI / 2, c: 0x2a9d54 }); label(F, -1.2, y0 + 0.14, 0.96, 0, 0x2a9d54); F.pipe('steel', [[-1.15, y0 + 0.02, 0.7], [-1.15, y0 + 0.02, 0.8], [-1.0, y0 + 0.02, 0.8]], 0.012, { c: 0x3b82f6 }); F.pipe('steel', [[-0.7, y0 + 0.02, 0.7], [-0.7, y0 + 0.02, 0.8], [-0.4, y0 + 0.02, 0.8], [-0.4, y0 + 0.02, 0.4]], 0.012, { c: 0x3b82f6 });
+    // reels of copper wire and titanium ingot stacks at the IN side
+    for (let i = 0; i < 3; i++) { const x = -0.5 + i * 0.0, z = 0.62 + i * 0.12; F.cylX('copper', x, y0 + 0.07, z, 0.045, 0.1, 14); for (const s of [-1, 1]) F.cylX('steelDark', x + s * 0.052, y0 + 0.07, z, 0.07, 0.008, 14); }
+    for (let i = 0; i < 6; i++) F.box('steel', -0.02 + (i % 2) * 0.11, y0 + Math.floor(i / 2) * 0.03, 0.9, 0.1, 0.03, 0.05, { c: 0xb8c4d0, bev: 0.004 }); P.pallet(F, 0.04, y0, 0.9, 0.26, 0.14);
+    // maglev ring with levitation demo
+    const mx = 1.0, mz = 0.52, MR = 0.3, my = y0 + 0.12;
+    F.torus('steelDark', mx, my, mz, MR, 0.022, 4, q >= 2 ? 40 : 28); F.torus('glowCyan', mx, my + 0.018, mz, MR, 0.006, 3, q >= 2 ? 40 : 28); F.torus('glowCyan', mx, my + 0.018, mz, MR - 0.05, 0.003, 3, 28);
+    for (let i = 0; i < 8; i++) { const a = i * TAU / 8; F.box('concrete', mx + Math.cos(a) * MR, y0, mz + Math.sin(a) * MR, 0.035, 0.11, 0.035, { c: 0x9aa1ab }); } for (let i = 0; i < (q >= 1 ? 24 : 12); i++) { const n = q >= 1 ? 24 : 12, a = (i + 0.5) * TAU / n; F.box('copper', mx + Math.cos(a) * MR, my + 0.018, mz + Math.sin(a) * MR, 0.014, 0.012, 0.046, { ry: -a + PI / 2 }); }
+    F.anim('pod', [mx, my + 0.05, mz], 'spin', S => { S.box('paint', MR, 0, 0, 0.06, 0.035, 0.13, { c: 0xf2f6fa, bev: 0.012 }); S.box('glassTint', MR, 0.02, 0, 0.05, 0.02, 0.07); S.box('glowCyan', MR, -0.016, 0, 0.05, 0.004, 0.11); }, { axis: 'y', speed: 0.9 });
+    F.cyl('paint', mx, y0, mz, 0.1, 0.1, 0.05, 18, { c: 0xf2f6fa }); F.cyl('water', mx, y0 + 0.05, mz, 0.085, 0.085, 0.004, 14, { c: 0x9be7ff }); F.cyl('black', mx, y0 + 0.054, mz, 0.05, 0.05, 0.006, 14); F.emitter(mx, y0 + 0.07, mz, 0.06, true);
+    F.anim('lev', [mx, y0 + 0.11, mz], 'bob', S => { S.box('steelDark', 0, 0, 0, 0.05, 0.022, 0.05, { bev: 0.004 }); S.box('gold', 0, 0.012, 0, 0.03, 0.006, 0.03); S.box('glowCyan', 0, -0.012, 0, 0.04, 0.004, 0.04); }, { axis: 'y', amp: 0.012, speed: 2.2 });
+    F.light(mx, y0 + 0.2, mz, [0.3, 0.9, 1], 0.8); P.mast(F, 1.36, 0.95, 0.5, PI); P.mast(F, -1.36, 0.95, 0.5, PI);
+    // test magnet: white cryostat ring on cradles with beam tube, power cabinets, transformer
+    const tx = 0.38, tz = 0.5, tyy = y0 + 0.2; F.torus('paint', tx, tyy, tz, 0.14, 0.04, 6, q >= 2 ? 28 : 18, { rx: PI / 2, c: 0xf2f6fa }); F.torus('glowCyan', tx, tyy, tz, 0.1, 0.005, 3, 24, { rx: PI / 2 }); F.torus('copper', tx, tyy, tz, 0.14, 0.042, 4, 5, { rx: PI / 2, arc: 0.5 }); F.cylZ('alu', tx, tyy, tz, 0.028, 0.44, 12, { c: 0xdfe5ec }); for (const s of [-1, 1]) { F.box('steelDark', tx + s * 0.1, y0, tz, 0.07, 0.08, 0.12, { bev: 0.006 }); F.cylZ('steel', tx, tyy, tz + s * 0.23, 0.04, 0.03, 12, { c: 0xc2c9d3 }); }
+    for (let i = 0; i < 3; i++) { F.box('paint', 0.62 + i * 0.12, y0, 0.93, 0.1, 0.15, 0.06, { c: 0xdfe5ec, bev: 0.006 }); F.box('steelDark', 0.62 + i * 0.12, y0 + 0.02, 0.963, 0.07, 0.1, 0.004); F.box('glowCyan', 0.62 + i * 0.12, y0 + 0.12, 0.964, 0.05, 0.008, 0.003); } P.transformer(F, 1.27, y0, 0.86, 0);
+  });
+
+  // ------------------------------------------------------------------ precision turbine works: sawtooth machine shop, jet engine on an outdoor test stand with spinning fan, rotor on trestles under a gantry crane, exhaust muffler, cooling tower
+  const sawTeeth = (F, x, y, z0, w, d, n, h, c) => {
+    const p = d / n; for (let i = 0; i < n; i++) { const a = z0 + i * p, b = a + p;
+      F.beam('steel', [x, y, a], [x, y + h, b], [w, 0.018], { flat: true, c }); F.box('glassTint', x, y, b - 0.004, w - 0.04, h, 0.008); for (let k = 0; k <= 6; k++) F.box('steelDark', x - w / 2 + 0.02 + k * (w - 0.04) / 6, y, b, 0.012, h, 0.012);
+      F.box('steelDark', x, y + h, b - 0.01, w, 0.014, 0.03);
+      for (const s of [-1, 1]) { const px = x + s * w / 2; if (s > 0) F._triN('panel', [px, y, a], [px, y + h, b], [px, y, b], [1, 0, 0], 1, { c }); else F._triN('panel', [px, y, a], [px, y, b], [px, y + h, b], [-1, 0, 0], 1, { c }); } }
+  };
+  reg('turbine_works', 3, 2, F => {
+    const y0 = P.slab(F, 3, 2, { drains: [[-0.6, 0.9], [1.0, 0.0]] }), q = F.q, ac = 0x38bdf8, hx = -0.72, hz = -0.47, hw = 1.5, hd = 0.86, wz = hz + hd / 2;
+    const fy = P.hall(F, hx, hz, hw, hd, 0.36, { c: 0xc9d2de, trim: ac, mat: 'panel' }); sawTeeth(F, hx, fy, hz - hd / 2, hw, hd, 4, 0.15, 0xb4bcc8);
+    P.windows(F, -1.2, y0 + 0.14, wz, 0.5, 0.12, 3, 0); P.windows(F, -0.5, y0 + 0.14, wz, 0.3, 0.12, 2, 0); P.windows(F, -1.45, y0 + 0.14, hz, 0.6, 0.12, 3, -PI / 2); P.windows(F, -0.9, y0 + 0.14, hz - hd / 2, 0.9, 0.12, 4, PI); F.box('glowBlue', hx, y0 + 0.31, wz + 0.004, hw - 0.04, 0.012, 0.006);
+    P.roller(F, -0.2, y0 + 0.05, wz, 0.28, 0.25, 0, 0xc4ccd6); P.roller(F, -0.2, y0 + 0.05, hz - hd / 2, 0.28, 0.25, PI, 0xc4ccd6);
+    P.conveyor(F, [-0.2, y0 + 0.08, 0.99], [-0.2, y0 + 0.08, wz + 0.03], 0.14, { floor: y0 }); P.conveyor(F, [-0.2, y0 + 0.08, hz - hd / 2 - 0.02], [-0.2, y0 + 0.08, -0.99], 0.14, { floor: y0 });
+    for (const x of [-1.2, -0.95]) P.hvac(F, x, fy + 0.0, -0.1, 0.18, 0.12, 0.07, 0); P.stack(F, -1.3, y0, -0.8, 0.05, 0.035, 0.7, { plain: true, c: 0xb8bcc4, bands: 3, steam: true });
+    // utility yard (back right): compressor house, cooling tower, transformer
+    const sy = P.shed(F, 0.7, y0, -0.62, 0.5, 0.4, 0.26, 0xaab3bf); for (let i = 0; i < 3; i++) F.cyl('steelDark', 0.55 + i * 0.15, sy, -0.62, 0.05, 0.05, 0.02, 10); P.coolingTower(F, 1.18, y0, -0.62, 0.17, 0.12, 0.42, { c: 0xa3abb7 }); F.emitter(1.18, y0 + 0.48, -0.62, 0.1, true); P.transformer(F, 1.12, y0, -0.2, 0); F.pipe('steel', [[0.95, y0 + 0.1, -0.62], [0.95, y0 + 0.1, -0.2]], 0.02, { c: 0x3b82f6 });
+    // jet-engine test stand (front right): blast wall + muffler, stand frame, nacelle with spinning fan, exhaust glow
+    const ex = 0.98, ez = 0.55, ey = y0 + 0.22; F.box('concrete', ex, y0, ez, 0.62, 0.016, 0.88, { c: 0x9aa1ab, tile: 1 }); F.box('concrete', ex, y0, 0.14, 0.62, 0.34, 0.06, { c: 0xb4bac2, bev: 0.006 }); F.box('steelDark', ex, y0 + 0.34, 0.12, 0.64, 0.03, 0.12, { rx: 0.3 }); for (let i = 0; i < 6; i++) F.box('steelDark', ex, y0 + 0.04 + i * 0.05, 0.174, 0.5, 0.012, 0.006);
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) F.box('steelDark', ex + sx * 0.2, y0 + 0.016, ez + sz * 0.17, 0.025, 0.3, 0.025, { c: 0x5a6676 }); for (const sz of [-1, 1]) F.box('steelDark', ex, y0 + 0.31, ez + sz * 0.17, 0.43, 0.025, 0.025, { c: 0x5a6676 }); for (const sx of [-1, 1]) F.box('steelDark', ex + sx * 0.2, y0 + 0.31, ez, 0.025, 0.025, 0.36, { c: 0x5a6676 }); F.box('steel', ex, ey + 0.1, ez, 0.04, 0.1, 0.22, { c: 0xc2c9d3 });
+    F.cylZ('paint', ex, ey, ez, 0.115, 0.42, 20, { c: 0xe9edf2 }); F.torus('steel', ex, ey, ez + 0.21, 0.115, 0.014, 4, 20, { rx: PI / 2, c: 0xf2f6fa }); F.cylZ('steelDark', ex, ey, ez + 0.2, 0.1, 0.03, 18); F.cylZ('steel', ex, ey, ez - 0.19, 0.07, 0.13, 14, { c: 0xaab3bf }); F.cylZ('glowOrange', ex, ey, ez - 0.255, 0.04, 0.012, 10); F.torus('steelDark', ex, ey, ez - 0.02, 0.117, 0.006, 3, 20, { rx: PI / 2 });
+    F.anim('fan', [ex, ey, ez + 0.19], 'spin', S => { const nb = q >= 2 ? 16 : 10; for (let i = 0; i < nb; i++) { const a = i * TAU / nb; S.box('steel', Math.cos(a) * 0.055, Math.sin(a) * 0.055, 0, 0.1, 0.02, 0.012, { rz: a + 0.2, c: 0xd4dbe4 }); } S.cylZ('steel', 0, 0, 0.012, 0.028, 0.03, 10, { c: 0xf2f6fa }); S.cylZ('steelDark', 0, 0, 0.0, 0.016, 0.05, 8); }, { axis: 'z', speed: 7 });
+    for (let i = 0; i < 3; i++) F.box('paint', ex - 0.24 + i * 0.07, y0 + 0.016, 0.9, 0.06, 0.1, 0.05, { c: 0xdfe5ec, bev: 0.005 }); F.box('glowBlue', ex, y0 + 0.018, 0.84, 0.5, 0.003, 0.012); F.light(ex, ey + 0.1, ez, [1, 0.6, 0.3], 0.6);
+    // turbine rotor on trestles beneath a gantry crane with a travelling hoist
+    const rx = -0.88, rz = 0.5, rcy = y0 + 0.17; for (const dx of [-0.36, 0.36]) { F.box('steelDark', rx + dx, y0, rz, 0.05, 0.1, 0.16, { c: 0x5a6676, bev: 0.004 }); F.box('steel', rx + dx, y0 + 0.1, rz, 0.05, 0.015, 0.1, { c: 0xaab3bf }); }
+    F.cylX('steel', rx, rcy, rz, 0.02, 0.9, 10, { c: 0xc2c9d3 }); for (let k = 0; k < 9; k++) { const x = rx - 0.32 + k * 0.08, r = 0.05 + 0.07 * Math.pow(k / 8, 1.3); F.cylX('steel', x, rcy, rz, r, 0.045, q >= 2 ? 18 : 12, { c: k % 2 ? 0x8f9db0 : 0xaebace }); if (q >= 1) F.torus('steelDark', x, rcy, rz, r + 0.004, 0.006, 3, q >= 2 ? 20 : 12, { rz: PI / 2 }); }
+    for (const sx of [-1, 1]) { const x = rx + sx * 0.5; for (const sz of [-1, 1]) F.box('steelDark', x, y0, rz + sz * 0.17, 0.025, 0.4, 0.025, { c: 0xe6b422 }); F.box('steelDark', x, y0 + 0.4, rz, 0.03, 0.03, 0.36, { c: 0xe6b422 }); F.box('concrete', x, y0, rz, 0.05, 0.012, 0.4, { c: 0x6c7480 }); } F.box('steelDark', rx, y0 + 0.43, rz, 1.06, 0.04, 0.05, { c: 0xe6b422 });
+    F.anim('hoist', [rx, y0 + 0.43, rz], 'slide', S => { S.box('steelDark', 0, -0.03, 0, 0.1, 0.05, 0.1, { c: 0x5a6676 }); S.box('black', 0, -0.2, 0, 0.004, 0.17, 0.004); S.box('paint', 0, -0.28, 0, 0.04, 0.05, 0.02, { c: 0xe6b422 }); }, { axis: 'x', amp: 0.3, speed: 0.35 });
+    // receiving: magnet cartons, steel bar bundles, titanium ingots
+    for (let i = 0; i < 4; i++) { F.box('steel', -0.05, y0 + i * 0.022, 0.85, 0.14, 0.02, 0.05, { c: 0x9aa7b8 }); } P.pallet(F, 0.0, y0, 0.62, 0.2, 0.14); for (let i = 0; i < 3; i++) F.box('paint', 0.0 + (i - 1) * 0.06, y0 + 0.03, 0.62, 0.05, 0.05, 0.05, { c: 0x3b82f6, bev: 0.004 }); P.forklift(F, -0.45, y0, 0.84, 0, 0xf2b705); F.box('brick', 0.4, y0, 0.2, 0.22, 0.16, 0.16, { c: 0x8a5a44, bev: 0.006 }); F.box('steelDark', 0.4, y0 + 0.02, 0.284, 0.12, 0.1, 0.01); F.box('glowOrange', 0.4, y0 + 0.03, 0.29, 0.1, 0.07, 0.004); F.cyl('steelDark', 0.46, y0 + 0.16, 0.2, 0.02, 0.025, 0.14, 8); F.cyl('concrete', 0.32, y0, 0.66, 0.13, 0.13, 0.025, 20, { c: 0x7d848f }); F.torus('paint', 0.32, y0 + 0.022, 0.66, 0.125, 0.007, 3, 20, { c: 0xe6b422 }); F.cyl('steelDark', 0.32, y0 + 0.025, 0.66, 0.1, 0.1, 0.008, 18); for (let i = 0; i < 6; i++) F.cyl('steel', 0.32 + Math.cos(i * TAU / 6) * 0.085, y0 + 0.033, 0.66 + Math.sin(i * TAU / 6) * 0.085, 0.008, 0.008, 0.006, 6);
+    for (const [x, z] of [[-0.4, 0.3], [0.1, 0.3]]) F.cyl('paint', x, y0, z, 0.012, 0.012, 0.06, 8, { c: 0xe6b422 }); F.box('hazard', -0.2, y0 + 0.001, 0.3, 0.36, 0.003, 0.05); P.mast(F, 1.36, 0.95, 0.5, PI);
+  });
+
+  // ------------------------------------------------------------------ graphene loom: honeycomb-faced hall, rotating graphene lattice sculpture, glass roll-to-roll pavilion with spinning reels, three CVD furnace tubes, coal intake and acid tanks
+  const lattice = (F, x, y, z, a, nodeMat) => {
+    const pts = [], idx = {}, ed = {}, key = (u, v) => Math.round(u * 1000) + ',' + Math.round(v * 1000), add = (u, v) => { const k = key(u, v); if (idx[k] == null) { idx[k] = pts.length; pts.push([u, v]); } return idx[k]; };
+    const hexes = [[0, 0]]; for (let i = 0; i < 6; i++) hexes.push([Math.cos(i * PI / 3) * Math.sqrt(3) * a, Math.sin(i * PI / 3) * Math.sqrt(3) * a]);
+    for (const [hu, hv] of hexes) for (let i = 0; i < 6; i++) { const a0 = add(hu + Math.cos(PI / 6 + i * PI / 3) * a, hv + Math.sin(PI / 6 + i * PI / 3) * a), a1 = add(hu + Math.cos(PI / 6 + (i + 1) * PI / 3) * a, hv + Math.sin(PI / 6 + (i + 1) * PI / 3) * a); ed[Math.min(a0, a1) + '_' + Math.max(a0, a1)] = [a0, a1]; }
+    for (const [i0, i1] of Object.values(ed)) F.beam('steel', [x + pts[i0][0], y + pts[i0][1], z], [x + pts[i1][0], y + pts[i1][1], z], 0.007, { c: 0xc2c9d3 });
+    for (const [u, v] of pts) F.sphere(nodeMat, x + u, y + v, z, 0.015, 7, 5);
+  };
+  reg('graphene_loom', 3, 2, F => {
+    const y0 = P.slab(F, 3, 2, { drains: [[-1.2, 0.9], [1.2, -0.2]] }), q = F.q, ac = 0xa78bfa, hx = -0.65, hz = -0.47, hw = 1.6, hd = 0.86, wz = hz + hd / 2;
+    const fy = P.hall(F, hx, hz, hw, hd, 0.5, { c: 0x2c3340, trim: ac, mat: 'panel' }), ty = fy + 0.03;
+    F.box('concrete', hx, fy, hz, hw + 0.04, 0.03, hd + 0.04, { c: 0x5a6270 }); F.at(hx, 0, hz, 0, f => P.parapet(f, hw + 0.03, hd + 0.03, ty, 0.05, 0x3d4655));
+    // honeycomb facade on the front wall (some cells glow)
+    const hr = 0.06, hdx = Math.sqrt(3) * hr * 1.02, hdz = hr * 1.53; for (let r = 0; r < 4; r++) for (let c = 0; c < 15; c++) { const x = hx - hw / 2 + 0.07 + c * hdx + (r % 2 ? hdx / 2 : 0), y = y0 + 0.07 + r * hdz; if (x > hx + hw / 2 - 0.05) continue; const lit = H(c + 3, r * 7 + 1) > 0.78; if (r === 0 && x > -0.4 && x < 0.0) continue; F.cylZ(lit ? 'glowPurple' : 'panel', x, y, wz + 0.012, hr * 0.98, 0.022, 6, { c: lit ? undefined : (H(c, r) > 0.5 ? 0x3d4655 : 0x4b5565), ry: PI / 6 }); }
+    P.roller(F, -0.8, y0 + 0.05, wz, 0.28, 0.25, 0, 0xc4ccd6); P.roller(F, -0.8, y0 + 0.05, hz - hd / 2, 0.28, 0.25, PI, 0xc4ccd6); F.box('glowPurple', hx, y0 + 0.44, wz + 0.004, hw - 0.04, 0.012, 0.006);
+    P.conveyor(F, [-0.8, y0 + 0.08, 0.99], [-0.8, y0 + 0.08, wz + 0.03], 0.14, { floor: y0 }); P.conveyor(F, [-0.8, y0 + 0.08, hz - hd / 2 - 0.02], [-0.8, y0 + 0.08, -0.99], 0.14, { floor: y0 });
+    P.windows(F, -1.45, y0 + 0.16, hz, 0.6, 0.16, 3, -PI / 2); P.windows(F, -0.4, y0 + 0.16, hz - hd / 2, 0.8, 0.16, 4, PI);
+    // roof: rotating graphene lattice sculpture, scrubber stack, plant
+    F.box('steelDark', -0.65, ty, -0.12, 0.3, 0.03, 0.12, { c: 0x3d4655 }); F.cyl('steelDark', -0.65, ty + 0.03, -0.12, 0.014, 0.014, 0.16, 8); F.anim('lat', [-0.65, ty + 0.36, -0.12], 'spin', S => lattice(S, 0, 0, 0, 0.068, 'glowPurple'), { axis: 'y', speed: 0.5 }); F.light(-0.65, ty + 0.36, -0.1, [0.65, 0.5, 1], 0.7);
+    P.stack(F, -1.3, ty, -0.7, 0.05, 0.036, 0.5, { plain: true, c: 0x8a95a3, bands: 3, steam: true }); P.hvac(F, -0.95, ty, -0.7, 0.26, 0.14, 0.08, 0); P.hvac(F, -0.25, ty, -0.7, 0.26, 0.14, 0.08, 0); F.pipe('steel', [[-1.3, ty + 0.1, -0.62], [-1.3, ty + 0.1, -0.35], [-0.95, ty + 0.1, -0.35]], 0.02, { c: 0xaab3bf });
+    // glass roll-to-roll pavilion: spinning unwind/rewind reels, idlers, web, lamp bank
+    const px = 0.9, pz = -0.47, pw = 1.1, pd = 0.86; F.box('concrete', px, y0, pz, pw + 0.04, 0.03, pd + 0.04, { c: 0x6c7480 }); F.box('glass', px, y0 + 0.03, pz + pd / 2, pw, 0.42, 0.01); F.box('glass', px + pw / 2, y0 + 0.03, pz, 0.01, 0.42, pd); F.box('glass', px - pw / 2, y0 + 0.03, pz, 0.01, 0.42, pd); F.box('glass', px, y0 + 0.03, pz - pd / 2, pw, 0.42, 0.01);
+    for (const sx of [-1, 0, 1]) for (const sz of [-1, 1]) F.box('steelDark', px + sx * pw / 2, y0 + 0.03, pz + sz * pd / 2, 0.025, 0.46, 0.025, { c: 0x5a6676 }); F.box('steelDark', px, y0 + 0.49, pz + pd / 2, pw + 0.03, 0.02, 0.03, { c: 0x5a6676 }); F.box('steelDark', px, y0 + 0.49, pz - pd / 2, pw + 0.03, 0.02, 0.03, { c: 0x5a6676 }); F.box('steelDark', px, y0 + 0.49, pz, 0.025, 0.02, pd, { c: 0x5a6676 });
+    F.gable('glass', px, y0 + 0.5, pz, pd + 0.02, pw + 0.04, 0.12, { ry: PI / 2, c: 0xcdd5e0 }); F.box('glowPurple', px, y0 + 0.62, pz, pw + 0.04, 0.008, 0.012);
+    for (const [x, ph] of [[px - 0.38, 0], [px + 0.38, 1]]) { F.box('steelDark', x, y0 + 0.03, pz, 0.05, 0.12, 0.22, { c: 0x5a6676 }); F.anim('reel' + ph, [x, y0 + 0.28, pz], 'spin', S => { S.cylZ('black', 0, 0, 0, 0.14, 0.14, q >= 2 ? 28 : 18, { c: 0x1c222c }); for (const s of [-1, 1]) { S.cylZ('steelDark', 0, 0, s * 0.082, 0.16, 0.012, 22, { c: 0x8a95a3 }); } for (let i = 0; i < 6; i++) { const a = i * TAU / 6; S.box('steel', Math.cos(a) * 0.065, Math.sin(a) * 0.065, 0.092, 0.11, 0.014, 0.008, { rz: a, c: 0xc2c9d3 }); } S.box('paint', 0.1, 0, 0.0, 0.04, 0.012, 0.14, { c: 0xa78bfa }); }, { axis: 'z', speed: ph ? -0.7 : 0.7 }); }
+    for (const x of [px - 0.15, px + 0.15]) { F.cylZ('steel', x, y0 + 0.14, pz, 0.03, 0.18, 10, { c: 0xc2c9d3 }); } F.beam('black', [px - 0.38, y0 + 0.14, pz], [px - 0.15, y0 + 0.14 + 0.0, pz], [0.13, 0.004], { flat: true }); F.beam('black', [px + 0.15, y0 + 0.14, pz], [px + 0.38, y0 + 0.14, pz], [0.13, 0.004], { flat: true }); F.box('black', px, y0 + 0.175, pz, 0.3, 0.004, 0.13); F.box('glowPurple', px, y0 + 0.4, pz, 0.28, 0.014, 0.16); F.box('steelDark', px, y0 + 0.415, pz, 0.32, 0.03, 0.2); F.light(px, y0 + 0.3, pz, [0.65, 0.5, 1], 0.8);
+    // CVD furnace bank (front right): three quartz tubes with heater jackets and violet plasma core
+    const cx = 0.84; for (let i = 0; i < 3; i++) { const z = 0.34 + i * 0.22, y = y0 + 0.13; F.box('steelDark', cx, y0, z, 1.0, 0.07, 0.1, { c: 0x4b5565 }); F.cylX('glass', cx, y, z, 0.045, 1.0, 12); F.cylX('glowPurple', cx, y, z, 0.026, 0.95, 8); for (const dx of [-0.3, 0.0, 0.3]) { F.cylX('steelDark', cx + dx, y, z, 0.068, 0.2, 14, { c: 0x6a7482 }); F.torus('glowOrange', cx + dx - 0.101, y, z, 0.068, 0.008, 3, 14, { rz: PI / 2 }); F.torus('glowOrange', cx + dx + 0.101, y, z, 0.068, 0.008, 3, 14, { rz: PI / 2 }); } for (const s of [-1, 1]) { F.cylX('steel', cx + s * 0.52, y, z, 0.056, 0.05, 12, { c: 0xc2c9d3 }); F.pipe('steel', [[cx + s * 0.55, y, z], [cx + s * 0.62, y, z], [cx + s * 0.62, y + 0.1, z]], 0.013, { c: s > 0 ? 0xdc2626 : 0x3b82f6 }); } F.box('paint', cx, y0 + 0.07, z - 0.057, 0.4, 0.04, 0.006, { c: 0x1e293b }); F.box('glowPurple', cx, y0 + 0.08, z - 0.06, 0.12, 0.012, 0.003); }
+    F.box('steelDark', cx + 0.62, y0, 0.55, 0.03, 0.28, 0.52, { c: 0x4b5565 }); F.box('steelDark', cx - 0.62, y0, 0.55, 0.03, 0.28, 0.52, { c: 0x4b5565 }); P.cableTray(F, cx - 0.6, y0 + 0.3, 0.24, cx + 0.6, 0.24);
+    // IN side: coal pile with loader hopper, acid tanks, gas bottles
+    P.pile(F, -1.15, y0, 0.72, 0.22, 0.16, 0x2a2a2a, 'coal'); F.box('steelDark', -0.8, y0, 0.84, 0.2, 0.12, 0.16, { c: 0x6a7482, bev: 0.008 }); P.funnel(F, -0.8, y0 + 0.12, 0.84, 0.18, 0.06, 0.1, 'steel', 0x8a95a3); P.tank(F, -1.15, y0, 0.28, 0.1, 0.42, { roof: 'dome', c: 0xd4d9e0, rings: 2 }); P.tank(F, -0.88, y0, 0.28, 0.08, 0.34, { roof: 'cone', c: 0x93c5fd }); label(F, -1.15, y0 + 0.1, 0.38, 0, 0xdc2626);
+    for (let i = 0; i < 4; i++) F.cyl('paint', -0.45 + i * 0.07, y0, 0.84, 0.026, 0.026, 0.17, 8, { c: [0x2563eb, 0xdfe5ec, 0xfacc15, 0x16a34a][i] }); P.mast(F, 1.36, 0.95, 0.5, PI); F.light(0.9, y0 + 0.25, 0.5, [0.65, 0.5, 1], 0.7);
+  });
+})(typeof window !== 'undefined' ? window : globalThis);
+
+/* ---- models_tech2.js ---- */
+/* High-tech II: assembler (3x3 robotic cell), ev_mech_plant (3x3 mech assembly). IN = +Z edge, OUT = -Z edge. */
+(function (root) {
+  'use strict';
+  const M = root.IEModels, P = root.IEParts, W = P.W, PI = Math.PI, TAU = PI * 2, reg = (t, w, d, f, v) => M.reg(t, w, d, f, v);
+  if (!W) return; const { car, lamppost, solar, H } = W;
+  // articulated six-axis style robot arm: turntable yaw, shoulder, elbow (nested oscillating joints)
+  const robot = (F, x, y, z, ry, c, ph, sc) => { sc = sc || 1; F.at(x, y, z, ry, f => {
+    f.cyl('steelDark', 0, 0, 0, 0.05 * sc, 0.06 * sc, 0.03 * sc, 14);
+    f.anim('rb', [0, 0.03 * sc, 0], 'osc', S => {
+      S.cyl('paint', 0, 0, 0, 0.045 * sc, 0.05 * sc, 0.04 * sc, 14, { c }); S.box('paint', 0, 0.04 * sc, 0, 0.065 * sc, 0.07 * sc, 0.05 * sc, { c, bev: 0.006 });
+      S.anim('sh', [0, 0.075 * sc, 0], 'osc', T => {
+        T.box('paint', 0, 0, 0, 0.034 * sc, 0.2 * sc, 0.034 * sc, { c, bev: 0.004 }); T.cylZ('steelDark', 0, 0, 0, 0.026 * sc, 0.05 * sc, 10);
+        T.anim('el', [0, 0.2 * sc, 0], 'osc', U => {
+          U.cylZ('steelDark', 0, 0, 0, 0.022 * sc, 0.046 * sc, 10); U.box('paint', 0, 0, 0, 0.028 * sc, 0.15 * sc, 0.028 * sc, { c, bev: 0.004 }); U.box('steel', 0, 0.15 * sc, 0, 0.04 * sc, 0.022 * sc, 0.04 * sc, { c: 0xc2c9d3 });
+          for (const s of [-1, 1]) U.box('steelDark', s * 0.012 * sc, 0.19 * sc, 0, 0.008 * sc, 0.04 * sc, 0.02 * sc);
+        }, { axis: 'z', amp: 0.55, speed: 1.1, phase: ph + 1.3 });
+      }, { axis: 'z', amp: 0.38, speed: 0.9, phase: ph });
+    }, { axis: 'y', amp: 0.9, speed: 0.7, phase: ph });
+  }); };
+  const unit = (F, x, y, z, c) => { F.box('paint', x, y, z, 0.12, 0.07, 0.1, { c: c || 0xdfe5ec, bev: 0.006 }); F.box('glowGreen', x, y + 0.045, z + 0.051, 0.07, 0.012, 0.003); F.box('steelDark', x, y + 0.07, z, 0.09, 0.008, 0.07); };
+  const andon = (F, x, y, z, h) => { F.cyl('steelDark', x, y, z, 0.008, 0.008, h, 6); F.cyl('glowRed', x, y + h, z, 0.02, 0.02, 0.02, 8); F.cyl('glowAmber', x, y + h + 0.02, z, 0.02, 0.02, 0.02, 8); F.cyl('glowGreen', x, y + h + 0.04, z, 0.02, 0.02, 0.02, 8); };
+  const agv = (F, x, y, z, ry, lit) => F.at(x, y, z, ry, f => { f.box('steelDark', 0, 0.01, 0, 0.1, 0.035, 0.14, { bev: 0.008 }); f.box('paint', 0, 0.045, 0, 0.1, 0.01, 0.14, { c: 0x10b981, bev: 0.004 }); f.box('glowCyan', 0, 0.02, 0.071, 0.07, 0.008, 0.003); f.box('steelDark', 0, 0.055, 0, 0.07, 0.01, 0.1); for (const s of [-1, 1]) f.box('rubber', s * 0.052, 0.002, 0, 0.012, 0.03, 0.04); if (lit) f.box('glowGreen', 0, 0.056, 0.0, 0.04, 0.003, 0.04); });
+
+  // ------------------------------------------------------------------ robotic assembly plant: clerestory hall with rotating gear emblem, robot cell with oscillating arms and gantry, AGV charging bay, racking
+  reg('assembler', 3, 3, F => {
+    const y0 = P.slab(F, 3, 3, { drains: [[-1.2, 1.3], [1.2, 1.3]] }), q = F.q, ac = 0x10b981, hx = 0, hz = -0.75, hw = 2.9, hd = 1.4, wz = hz + hd / 2;
+    const fy = P.hall(F, hx, hz, hw, hd, 0.55, { c: 0xeef2f6, trim: ac, mat: 'panel' }), ty = fy + 0.03;
+    F.box('concrete', hx, fy, hz, hw + 0.04, 0.03, hd + 0.04, { c: 0x9aa1ab }); F.at(hx, 0, hz, 0, f => P.parapet(f, hw + 0.03, hd + 0.03, ty, 0.05, 0xd4d9e0));
+    // clerestory with glazing, PV arrays either side, plant
+    F.box('panel', 0, ty, hz, 2.3, 0.16, 0.44, { c: 0xe6ebf1 }); for (const s of [-1, 1]) { F.box('glassTint', 0, ty + 0.04, hz + s * 0.222, 2.2, 0.09, 0.008); for (let i = 0; i <= 10; i++) F.box('steelDark', -1.1 + i * 0.22, ty + 0.04, hz + s * 0.225, 0.01, 0.09, 0.008); } F.box('steelDark', 0, ty + 0.16, hz, 2.34, 0.014, 0.48, { c: 0x8a95a3 }); F.box('glowGreen', 0, ty + 0.168, hz + 0.24, 2.3, 0.006, 0.006);
+    for (const z of [-1.18, -0.32]) for (let i = 0; i < 4; i++) solar(F, -1.05 + i * 0.7, ty, z, 0.64, 0.28, z < -0.7 ? 0.28 : -0.28);
+    for (const x of [-1.25, 1.2]) P.hvac(F, x, ty, hz + 0.0, 0.26, 0.16, 0.08, 0); P.stack(F, 1.35, ty, -1.3, 0.04, 0.03, 0.4, { plain: true, c: 0xc2c9d3, bands: 2, steam: true });
+    // facade: rotating gear emblem, windows, roller doors
+    F.box('steelDark', 0.9, y0 + 0.31, wz + 0.006, 0.5, 0.5, 0.01, { c: 0x1e293b }); F.anim('gear', [0.9, y0 + 0.31, wz + 0.04], 'spin', S => { S.cylZ('steel', 0, 0, 0, 0.17, 0.03, 22, { c: 0xdfe5ec }); for (let i = 0; i < 14; i++) { const a = i * TAU / 14; S.box('steel', Math.cos(a) * 0.19, Math.sin(a) * 0.19, 0, 0.055, 0.05, 0.03, { rz: a + PI / 2, c: 0xdfe5ec }); } S.cylZ('glowGreen', 0, 0, 0.016, 0.1, 0.004, 18); S.cylZ('steelDark', 0, 0, 0.02, 0.055, 0.004, 14); for (let i = 0; i < 5; i++) { const a = i * TAU / 5; S.box('steel', Math.cos(a) * 0.065, Math.sin(a) * 0.065, 0.016, 0.07, 0.016, 0.008, { rz: a, c: 0xc2c9d3 }); } }, { axis: 'z', speed: 0.3 });
+    P.windows(F, -0.2, y0 + 0.16, wz, 0.8, 0.16, 5, 0); P.windows(F, -1.15, y0 + 0.16, hz - hd / 2, 0.4, 0.16, 2, PI); P.windows(F, 0.85, y0 + 0.16, hz - hd / 2, 1.0, 0.16, 5, PI); P.windows(F, -1.45, y0 + 0.16, hz, 0.8, 0.16, 4, -PI / 2); P.windows(F, 1.45, y0 + 0.16, hz, 0.8, 0.16, 4, PI / 2); F.box('glowGreen', hx, y0 + 0.49, wz + 0.004, hw - 0.04, 0.012, 0.006);
+    P.roller(F, -0.75, y0 + 0.05, wz, 0.3, 0.27, 0, 0xc4ccd6); P.roller(F, -0.75, y0 + 0.05, hz - hd / 2, 0.3, 0.27, PI, 0xc4ccd6); P.conveyor(F, [-0.75, y0 + 0.08, 1.49], [-0.75, y0 + 0.08, wz + 0.03], 0.15, { floor: y0 }); P.conveyor(F, [-0.75, y0 + 0.08, hz - hd / 2 - 0.02], [-0.75, y0 + 0.08, -1.49], 0.15, { floor: y0 });
+    for (let i = 0; i < 3; i++) F.box('steel', -0.75, y0 + 0.1, 1.2 - i * 0.28, 0.1, 0.03, 0.08, { c: 0xaebace }); unit(F, -0.75, y0 + 0.1, -1.36, 0xdfe5ec);
+    // robot cell
+    const cz = 0.62; F.box('concrete', 0.2, y0, cz, 1.4, 0.008, 0.92, { c: 0xb4bac2, tile: 1 }); P.conveyor(F, [-0.45, y0 + 0.07, cz], [0.85, y0 + 0.07, cz], 0.16, { floor: y0 }); for (let i = 0; i < 4; i++) unit(F, -0.3 + i * 0.35, y0 + 0.095, cz, i % 2 ? 0xdfe5ec : 0xc7d2de);
+    const rob = [[-0.2, 0.36, 0, 0], [0.2, 0.88, PI, 1.5], [0.55, 0.36, 0, 3], [0.7, 0.88, PI, 4.5]]; for (const [x, z, ry, ph] of rob) robot(F, x, y0 + 0.008, z, ry, 0xf2701a, ph, 1);
+    P.fence(F, -0.52, 0.16, 0.92, 0.16, y0, 0.12); P.fence(F, -0.52, 1.1, 0.92, 1.1, y0, 0.12); for (const s of [-1, 1]) { F.box('steelDark', 0.2 + s * 0.74, y0, cz - 0.1, 0.014, 0.18, 0.014); F.box('glowGreen', 0.2 + s * 0.74, y0 + 0.04, cz - 0.1, 0.008, 0.1, 0.008); F.box('steelDark', 0.2 + s * 0.74, y0, cz + 0.1, 0.014, 0.18, 0.014); F.box('glowGreen', 0.2 + s * 0.74, y0 + 0.04, cz + 0.1, 0.008, 0.1, 0.008); }
+    for (const sx of [-0.52, 0.92]) for (const sz of [0.16, 1.1]) F.box('steelDark', sx, y0, sz, 0.024, 0.46, 0.024, { c: 0xe6b422 }); for (const sz of [0.16, 1.1]) F.box('steelDark', 0.2, y0 + 0.46, sz, 1.46, 0.024, 0.03, { c: 0xe6b422 });
+    F.anim('bridge', [0.2, y0 + 0.46, cz + 0.07], 'slide', S => { S.box('steelDark', 0, 0, 0, 0.04, 0.03, 0.98, { c: 0xe6b422 }); S.box('paint', 0, -0.04, 0, 0.055, 0.05, 0.07, { c: ac }); S.box('black', 0, -0.14, 0, 0.004, 0.12, 0.004); S.box('steelDark', 0, -0.205, 0, 0.03, 0.03, 0.03); }, { axis: 'x', amp: 0.55, speed: 0.3 }); andon(F, -0.5, y0, 0.2, 0.3); andon(F, 0.9, y0, 1.06, 0.3);
+    // AGV charging bay (left front), tool crib shed
+    for (let i = 0; i < 3; i++) { F.box('concrete', -1.15, y0, 0.45 + i * 0.3, 0.2, 0.008, 0.18, { c: 0x6c7480 }); F.box('glowGreen', -1.15, y0 + 0.008, 0.45 + i * 0.3, 0.14, 0.003, 0.012); if (i < 2) agv(F, -1.15, y0 + 0.008, 0.45 + i * 0.3, PI / 2, i === 0); F.box('steelDark', -1.38, y0, 0.45 + i * 0.3, 0.05, 0.12, 0.08); F.box('glowGreen', -1.38, y0 + 0.08, 0.45 + i * 0.3 + 0.041, 0.03, 0.02, 0.003); }
+    agv(F, -0.95, y0 + 0.008, 1.0, 0, true); P.shed(F, -1.2, y0, 1.25, 0.4, 0.22, 0.2, 0xdfe5ec);
+    // racking, pallets, forklift, truck at the right front
+    P.racking(F, 1.25, y0, 0.62, 0.3, 0.16, 0.42, 3, 7); P.racking(F, 1.25, y0, 0.95, 0.3, 0.16, 0.42, 3, 11); P.forklift(F, 1.0, y0, 1.1, 0, 0xf2b705); P.pallet(F, 1.35, y0, 1.25, 0.16, 0.14); for (let i = 0; i < 2; i++) unit(F, 1.35, y0 + 0.03 + i * 0.07, 1.25, 0xdfe5ec); P.truck(F, 0.5, y0, 1.25, PI / 2, 0x10b981); lamppost(F, 1.38, y0, 1.34, 0.3); lamppost(F, -1.38, y0, 1.34, 0.3); F.light(1.38, y0 + 0.32, 1.34, [1, 0.9, 0.6], 0.5); F.light(0.2, y0 + 0.5, 0.62, [0.4, 1, 0.7], 0.8);
+  });
+
+  // ------------------------------------------------------------------ bipedal combat mech (hero piece): cockpit dome, shoulder armour, gatling arm, shield arm, battery backpack, spinning radar
+  const mech = (F, x, y, z, ry) => F.at(x, y, z, ry, f => {
+    const B = 0xc9d2de, Bd = 0x3f5f8a, Y = 0xf2b705, J = 0x2a3340, q = F.q;
+    for (const sx of [-1, 1]) { const x = 0.17 * sx;
+      f.box('steelDark', x, 0, 0.03, 0.15, 0.05, 0.26, { c: J, bev: 0.01 }); f.box('paint', x, 0, 0.14, 0.15, 0.035, 0.05, { c: Y, bev: 0.008 }); f.cylX('steelDark', x, 0.075, -0.03, 0.045, 0.14, 12, { c: J });
+      f.beam('paint', [x, 0.08, -0.03], [x, 0.37, 0.05], [0.11, 0.13], { c: B }); f.beam('paint', [x, 0.13, 0.05], [x, 0.34, 0.11], [0.08, 0.035], { c: Bd }); f.box('hazard', x, 0.14, 0.05, 0.09, 0.03, 0.012, { rx: 0.3 });
+      f.sphere('steelDark', x, 0.39, 0.05, 0.058, 10, 7, { c: J }); f.box('paint', x, 0.35, 0.1, 0.11, 0.1, 0.06, { c: Y, bev: 0.01 });
+      f.beam('paint', [x, 0.4, 0.05], [x, 0.62, -0.02], [0.12, 0.13], { c: B }); f.sphere('steelDark', x, 0.63, -0.02, 0.06, 10, 7, { c: J }); if (q >= 1) for (let i = 0; i < 3; i++) f.box('steelDark', x + sx * 0.062, 0.45 + i * 0.045, 0.03 - i * 0.012, 0.008, 0.025, 0.05);
+    }
+    f.box('paint', 0, 0.6, -0.02, 0.46, 0.1, 0.24, { c: Bd, bev: 0.012 }); f.box('paint', 0, 0.57, 0.1, 0.12, 0.1, 0.05, { c: Y, bev: 0.008 }); f.cyl('steelDark', 0, 0.67, -0.02, 0.1, 0.12, 0.06, 14, { c: J });
+    f.box('paint', 0, 0.72, -0.02, 0.36, 0.12, 0.26, { c: B, bev: 0.012 }); f.box('paint', 0, 0.84, -0.01, 0.52, 0.26, 0.32, { c: B, bev: 0.014 }); f.box('paint', 0, 0.83, 0.16, 0.44, 0.14, 0.02, { c: Bd, bev: 0.008 }); for (let i = 0; i < 5; i++) f.box('steelDark', -0.1 + i * 0.05, 0.84, 0.172, 0.028, 0.08, 0.005); f.box('paint', 0, 0.96, 0.165, 0.5, 0.025, 0.02, { c: Y });
+    f.sphere('glassTint', 0, 1.1, 0.04, 0.095, 16, 8, { dome: true }); f.sphere('glowOrange', 0, 1.1, 0.04, 0.055, 10, 6, { dome: true }); f.torus('paint', 0, 1.1, 0.04, 0.097, 0.009, 3, 18, { c: Y }); f.box('steelDark', 0, 1.105, 0.06, 0.022, 0.01, 0.07);
+    f.beam('steel', [0.075, 1.12, -0.07], [0.09, 1.36, -0.09], 0.008); f.sphere('glowRed', 0.09, 1.365, -0.09, 0.014, 6, 4);
+    for (const sx of [-1, 1]) { f.box('paint', sx * 0.35, 1.0, 0.0, 0.16, 0.14, 0.24, { c: Y, bev: 0.015 }); f.box('paint', sx * 0.35, 1.135, 0.0, 0.18, 0.025, 0.26, { c: Bd, bev: 0.008 }); f.sphere('steelDark', sx * 0.35, 0.92, 0.0, 0.06, 10, 7, { c: J }); f.beam('paint', [sx * 0.37, 0.9, 0.0], [sx * 0.38, 0.7, 0.04], [0.09, 0.1], { c: B }); f.sphere('steelDark', sx * 0.38, 0.69, 0.04, 0.05, 10, 7, { c: J }); f.beam('paint', [sx * 0.38, 0.67, 0.05], [sx * 0.38, 0.64, 0.2], [0.1, 0.11], { c: Bd }); }
+    f.box('steelDark', 0.38, 0.6, 0.23, 0.11, 0.11, 0.2, { c: J, bev: 0.01 }); for (let k = 0; k < 3; k++) { const a = k * TAU / 3 + 0.5; f.cylZ('steel', 0.38 + Math.cos(a) * 0.022, 0.655 + Math.sin(a) * 0.022, 0.42, 0.011, 0.3, 8, { c: 0x6a7482 }); } f.torus('steelDark', 0.38, 0.655, 0.36, 0.034, 0.008, 3, 12, { c: J }); f.cylZ('steelDark', 0.38, 0.655, 0.57, 0.032, 0.03, 10); f.box('paint', 0.46, 0.66, 0.1, 0.05, 0.08, 0.1, { c: Y, bev: 0.006 });
+    f.box('paint', -0.38, 0.57, 0.14, 0.12, 0.14, 0.14, { c: J, bev: 0.012 }); f.box('paint', -0.47, 0.64, 0.18, 0.03, 0.36, 0.22, { c: Bd, bev: 0.01 }); f.box('paint', -0.488, 0.64, 0.18, 0.006, 0.32, 0.035, { c: Y }); f.box('paint', -0.488, 0.74, 0.18, 0.006, 0.035, 0.12, { c: Y });
+    f.box('steelDark', 0, 0.9, -0.22, 0.34, 0.3, 0.14, { c: J, bev: 0.012 }); for (let k = 0; k < 4; k++) f.box('glowGreen', -0.1 + k * 0.067, 0.9, -0.2925, 0.04, 0.2, 0.004); for (const sx of [-1, 1]) { f.cyl('steelDark', sx * 0.1, 0.68, -0.24, 0.04, 0.05, 0.06, 10, { c: J }); f.cyl('glowBlue', sx * 0.1, 0.675, -0.24, 0.035, 0.035, 0.008, 10); f.cyl('steel', sx * 0.14, 1.05, -0.25, 0.015, 0.015, 0.15, 8); }
+    f.anim('radar', [-0.35, 1.15, 0], 'spin', S => { S.cyl('steelDark', 0, 0, 0, 0.012, 0.012, 0.04, 6); S.box('steel', 0, 0.045, 0, 0.1, 0.012, 0.03, { c: 0xdfe5ec }); S.box('glowGreen', 0.05, 0.045, 0, 0.012, 0.012, 0.012); }, { axis: 'y', speed: 2.2 });
+  });
+  const tyre = (F, x, y, z, n) => { for (let i = 0; i < n; i++) F.torus('rubber', x, y + 0.02 + i * 0.036, z, 0.045, 0.018, 5, 12); };
+  reg('ev_mech_plant', 3, 3, F => {
+    const y0 = P.slab(F, 3, 3, { drains: [[1.2, 1.3], [-0.6, 1.3]] }), q = F.q, ac = 0xf2b705, hx = 0, hz = -0.85, hw = 2.9, hd = 1.2, wz = hz + hd / 2;
+    const fy = P.hall(F, hx, hz, hw, hd, 0.65, { c: 0x3b4a60, trim: ac, mat: 'panel' }), ty = fy + 0.03;
+    F.box('concrete', hx, fy, hz, hw + 0.04, 0.03, hd + 0.04, { c: 0x5a6676 }); F.at(hx, 0, hz, 0, f => P.parapet(f, hw + 0.03, hd + 0.03, ty, 0.05, 0x7d8898));
+    // hangar door with hazard lintel, glowing interior
+    F.box('black', 0, y0 + 0.03, wz + 0.004, 0.84, 0.5, 0.012); F.box('glowOrange', 0, y0 + 0.03, wz + 0.01, 0.8, 0.012, 0.004); F.box('glowOrange', 0, y0 + 0.4, wz + 0.01, 0.8, 0.01, 0.004); for (const s of [-1, 1]) F.box('paint', s * 0.44, y0 + 0.03, wz + 0.012, 0.045, 0.54, 0.022, { c: ac, bev: 0.004 }); F.box('hazard', 0, y0 + 0.55, wz + 0.014, 0.94, 0.06, 0.024); F.box('steelDark', 0, y0 + 0.61, wz + 0.01, 1.0, 0.02, 0.03);
+    P.windows(F, -0.95, y0 + 0.2, wz, 0.8, 0.18, 4, 0); P.windows(F, 0.95, y0 + 0.2, wz, 0.8, 0.18, 4, 0); P.windows(F, -0.9, y0 + 0.2, hz - hd / 2, 1.0, 0.18, 5, PI); P.windows(F, 0.9, y0 + 0.2, hz - hd / 2, 1.0, 0.18, 5, PI); F.box('glowAmber', hx, y0 + 0.6, wz + 0.004, hw - 0.04, 0.012, 0.006);
+    P.roller(F, -1.2, y0 + 0.05, wz, 0.28, 0.27, 0, 0xc4ccd6); P.roller(F, -1.2, y0 + 0.05, hz - hd / 2, 0.28, 0.27, PI, 0xc4ccd6); P.conveyor(F, [-1.2, y0 + 0.08, 1.49], [-1.2, y0 + 0.08, wz + 0.03], 0.15, { floor: y0 }); P.conveyor(F, [-1.2, y0 + 0.08, hz - hd / 2 - 0.02], [-1.2, y0 + 0.08, -1.49], 0.15, { floor: y0 });
+    for (let i = 0; i < 3; i++) F.box('paint', -1.2, y0 + 0.1, 1.2 - i * 0.3, 0.1, 0.05, 0.08, { c: [0x3b82f6, 0x6a7482, 0x2a9d54][i] });
+    // roof: battery storage containers, fans, EV lightning-bolt sign
+    for (let i = 0; i < 4; i++) { P.container(F, -1.0 + i * 0.4, ty, -1.12, 0, [0x6a7482, 0x8a95a3][i % 2], 0.9); F.box('glowGreen', -1.0 + i * 0.4, ty + 0.11, -1.12 + 0.12, 0.3, 0.01, 0.004); } for (const x of [0.5, 0.9]) { F.cyl('steel', x, ty, -0.95, 0.11, 0.11, 0.1, 18, { c: 0xdfe5ec }); F.cyl('black', x, ty + 0.1, -0.95, 0.105, 0.105, 0.008, 18); F.anim('rfan', [x, ty + 0.108, -0.95], 'spin', S => { for (let i = 0; i < 4; i++) S.box('steelDark', Math.cos(i * PI / 2) * 0.05, 0, Math.sin(i * PI / 2) * 0.05, 0.1, 0.006, 0.04, { ry: -i * PI / 2 }); }, { axis: 'y', speed: 6 }); }
+    P.hvac(F, 0.6, ty, -0.45, 0.3, 0.16, 0.09, 0); P.hvac(F, -0.2, ty, -0.45, 0.3, 0.16, 0.09, 0); P.stack(F, 1.3, ty, -1.25, 0.04, 0.03, 0.4, { plain: true, c: 0xc2c9d3, bands: 2, steam: true });
+    F.cylZ('steelDark', 1.0, ty + 0.2, -0.3, 0.2, 0.02, 26, { c: 0x1e293b }); F.beam('glowAmber', [1.07, ty + 0.38, -0.3], [0.95, ty + 0.2, -0.3], 0.032); F.beam('glowAmber', [0.95, ty + 0.2, -0.3], [1.05, ty + 0.2, -0.3], 0.028); F.beam('glowAmber', [1.05, ty + 0.2, -0.3], [0.92, ty + 0.03, -0.3], 0.032);
+    // assembly stand with the mech, gantry towers with a travelling hoist, floodlights
+    const mx = 0, mz = 0.58; F.box('steelDark', mx, y0, mz, 0.96, 0.035, 0.8, { c: 0x3a4350, bev: 0.006 }); for (const s of [-1, 1]) { F.box('hazard', mx, y0 + 0.035, mz + s * 0.4, 0.96, 0.003, 0.04); F.box('hazard', mx + s * 0.48, y0 + 0.035, mz, 0.04, 0.003, 0.8); } mech(F, mx, y0 + 0.035, mz, 0);
+    for (const s of [-1, 1]) { P.lattice(F, s * 0.62, y0, mz - 0.05, 0.18, 0.18, 0.1, 0.1, 1.5, { c: 0xe6b422 }); F.box('steelDark', s * 0.62, y0 + 1.5, mz - 0.05, 0.14, 0.03, 0.14, { c: 0x3a4350 }); P.mast(F, s * 0.55, mz + 0.42, 0.5, 0); }
+    F.box('steelDark', 0, y0 + 1.53, mz - 0.05, 1.4, 0.04, 0.07, { c: 0xe6b422 }); F.anim('hoist', [0, y0 + 1.53, mz - 0.05], 'slide', S => { S.box('steelDark', 0, -0.04, 0, 0.12, 0.05, 0.1, { c: 0x5a6676 }); S.box('black', 0, -0.17, 0, 0.004, 0.2, 0.004); S.box('paint', 0, -0.28, 0, 0.05, 0.05, 0.03, { c: ac }); }, { axis: 'x', amp: 0.4, speed: 0.3 }); F.light(0, y0 + 0.8, mz + 0.5, [1, 0.8, 0.5], 1.0);
+    // test arena: gravel, boulders, tyre walls, footprints
+    F.box('dirt', -0.9, y0, 0.62, 0.62, 0.012, 0.9, { c: 0x8a7a62, tile: 0.5 }); for (let i = 0; i < 9; i++) F.sphere('rock', -1.1 + H(i, 5) * 0.4, y0 + 0.03, 0.25 + H(i, 9) * 0.75, 0.035 + 0.03 * H(i, 2), 6, 4, { c: 0x8a919b }); tyre(F, -0.65, y0, 0.3, 3); tyre(F, -0.65, y0, 0.45, 2); tyre(F, -1.15, y0, 1.0, 3); for (let i = 0; i < 4; i++) F.box('black', -0.3 - i * 0.14 * 0.0 + (i % 2 ? 0.17 : -0.17) * 0.0, y0 + 0.002, 1.2 - i * 0.18, 0.1, 0.002, 0.16, { c: 0x2a2a2a });
+    // battery yard: module stacks, chargers, transformer, cable reel
+    for (let k = 0; k < 3; k++) { P.pallet(F, 0.85 + k * 0.22, y0, 1.1, 0.18, 0.14); for (let i = 0; i < 3; i++) { F.box('paint', 0.85 + k * 0.22, y0 + 0.03 + i * 0.06, 1.1, 0.16, 0.055, 0.12, { c: 0x2a3340, bev: 0.005 }); F.box('glowGreen', 0.85 + k * 0.22, y0 + 0.045 + i * 0.06, 1.162, 0.1, 0.01, 0.003); } }
+    for (let i = 0; i < 3; i++) { F.box('paint', 0.95 + i * 0.16, y0, 0.5, 0.08, 0.2, 0.06, { c: 0xdfe5ec, bev: 0.006 }); F.box('glowGreen', 0.95 + i * 0.16, y0 + 0.13, 0.531, 0.05, 0.03, 0.003); F.pipe('black', [[0.95 + i * 0.16 + 0.03, y0 + 0.08, 0.53], [0.95 + i * 0.16 + 0.05, y0 + 0.02, 0.62]], 0.008); } P.transformer(F, 1.25, y0, 0.88, 0); F.cylX('wood', 0.7, y0 + 0.06, 0.88, 0.05, 0.05, 14); for (const s of [-1, 1]) F.cylX('steelDark', 0.7 + s * 0.03, y0 + 0.06, 0.88, 0.075, 0.008, 14);
+    P.forklift(F, 0.55, y0, 1.15, 0, 0xf2b705); lamppost(F, 1.38, y0, 1.34, 0.3); lamppost(F, -0.6, y0, 1.34, 0.3); F.light(1.38, y0 + 0.32, 1.34, [1, 0.9, 0.6], 0.5);
+  });
+})(typeof window !== 'undefined' ? window : globalThis);
+
+/* ---- models_tech3.js ---- */
+/* High-tech III: aerospace_works (3x3 hangar + rocket pad + spaceplane), nanotube_fab (3x3). IN = +Z edge, OUT = -Z edge. */
+(function (root) {
+  'use strict';
+  const M = root.IEModels, P = root.IEParts, W = P.W, PI = Math.PI, TAU = PI * 2, reg = (t, w, d, f, v) => M.reg(t, w, d, f, v);
+  if (!W) return; const { car, lamppost, solar, H } = W;
+  // extruded convex polygon: axis 'y' pts=(x,z), 'x' pts=(z,y), 'z' pts=(x,y); extruded from `base` by `th` along the axis
+  const ext = (F, mat, pts, axis, base, th, c) => {
+    const to3 = (p, h) => axis === 'y' ? [p[0], base + h, p[1]] : axis === 'x' ? [base + h, p[1], p[0]] : [p[0], p[1], base + h];
+    const dir = axis === 'y' ? [0, 1, 0] : axis === 'x' ? [1, 0, 0] : [0, 0, 1], nd = v => axis === 'y' ? [v[0], 0, v[1]] : axis === 'x' ? [0, v[1], v[0]] : [v[0], v[1], 0];
+    let cx = 0, cy = 0; for (const p of pts) { cx += p[0]; cy += p[1]; } cx /= pts.length; cy /= pts.length; const o = c == null ? {} : { c };
+    for (let i = 0; i < pts.length; i++) { const a = pts[i], b = pts[(i + 1) % pts.length], ctr = [cx, cy];
+      F._triN(mat, to3(ctr, th), to3(a, th), to3(b, th), dir, 1, o); F._triN(mat, to3(ctr, 0), to3(a, 0), to3(b, 0), [-dir[0], -dir[1], -dir[2]], 1, o);
+      let nx = b[1] - a[1], ny = -(b[0] - a[0]); const l = Math.hypot(nx, ny) || 1; nx /= l; ny /= l; if (nx * ((a[0] + b[0]) / 2 - cx) + ny * ((a[1] + b[1]) / 2 - cy) < 0) { nx = -nx; ny = -ny; } const nn = nd([nx, ny]);
+      F._triN(mat, to3(a, 0), to3(b, 0), to3(b, th), nn, 1, o); F._triN(mat, to3(a, 0), to3(b, th), to3(a, th), nn, 1, o); }
+  };
+  // half-elliptic barrel vault along Z (centre x,z; base y; width w, length len, height h)
+  const vaultPt = (cx, y, w, h, a) => [cx + Math.cos(a) * w / 2, y + Math.sin(a) * h];
+  const vault = (F, mat, cx, y, cz, w, len, h, N, c) => {
+    for (let i = 0; i < N; i++) { const a0 = i / N * PI, a1 = (i + 1) / N * PI, am = (a0 + a1) / 2, nx = Math.cos(am) * h, ny = Math.sin(am) * w / 2, l = Math.hypot(nx, ny), p0 = vaultPt(cx, y, w, h, a0), p1 = vaultPt(cx, y, w, h, a1), z0 = cz - len / 2, z1 = cz + len / 2;
+      F._triN(mat, [p0[0], p0[1], z0], [p1[0], p1[1], z0], [p1[0], p1[1], z1], [nx / l, ny / l, 0], 1.2, { c }); F._triN(mat, [p0[0], p0[1], z0], [p1[0], p1[1], z1], [p0[0], p0[1], z1], [nx / l, ny / l, 0], 1.2, { c }); }
+  };
+  const vaultCap = (F, mat, cx, y, z, w, h, N, nz, c, off) => { for (let i = 0; i < N; i++) { const p0 = vaultPt(cx, y, w, h, i / N * PI), p1 = vaultPt(cx, y, w, h, (i + 1) / N * PI); F._triN(mat, [cx, y, z], [p0[0], p0[1], z], [p1[0], p1[1], z], [0, 0, nz], 1, { c }); } };
+  const label = (F, x, y, z, ry, c) => F.at(x, y, z, ry || 0, f => { f.box('paint', 0, 0, 0, 0.06, 0.04, 0.004, { c: 0xf8f8f8 }); f.box('paint', 0, 0.008, 0.003, 0.024, 0.024, 0.002, { c: c || 0xe6b422, ry: PI / 4 }); });
+
+  // reusable spaceplane (nose toward +Z)
+  const spaceplane = (F, x, y, z, ry) => F.at(x, y, z, ry, f => {
+    const W0 = 0xf2f4f8, K = 0x2a2f38, R = 0xfb7185, yb = 0.1;
+    f.cylZ('paint', 0, yb, -0.06, 0.07, 0.72, 18, { c: W0 }); for (const [r, zz, l] of [[0.058, 0.33, 0.06], [0.043, 0.385, 0.05], [0.026, 0.43, 0.045]]) f.cylZ('paint', 0, yb - 0.004, zz, r, l, 14, { c: l < 0.05 && r < 0.03 ? K : W0 }); f.sphere('steelDark', 0, yb - 0.006, 0.456, 0.017, 6, 4, { c: K });
+    f.box('steelDark', 0, 0.03, -0.04, 0.1, 0.022, 0.62, { c: K, bev: 0.006 }); f.box('glassTint', 0, yb + 0.065, 0.2, 0.06, 0.022, 0.11, { bev: 0.005 }); f.box('paint', 0, yb + 0.0, 0.0, 0.142, 0.012, 0.22, { c: R }); f.box('paint', 0, yb + 0.07, -0.12, 0.05, 0.02, 0.36, { c: W0, bev: 0.006 });
+    for (const sx of [-1, 1]) { ext(f, 'paint', [[sx * 0.06, 0.2], [sx * 0.42, -0.3], [sx * 0.42, -0.4], [sx * 0.06, -0.4]], 'y', yb - 0.013, 0.016, W0); ext(f, 'paint', [[sx * 0.4, -0.28], [sx * 0.42, -0.3], [sx * 0.42, -0.4], [sx * 0.4, -0.4]], 'y', yb - 0.013, 0.017, R); ext(f, 'paint', [[-0.3, yb - 0.01], [-0.4, yb + 0.07], [-0.43, yb + 0.07], [-0.43, yb - 0.01]], 'x', sx * 0.42 - 0.004, 0.008, R); }
+    ext(f, 'paint', [[-0.06, yb + 0.06], [-0.34, yb + 0.28], [-0.43, yb + 0.28], [-0.43, yb + 0.06]], 'x', -0.007, 0.014, W0); ext(f, 'paint', [[-0.34, yb + 0.28], [-0.43, yb + 0.28], [-0.43, yb + 0.2], [-0.37, yb + 0.2]], 'x', -0.008, 0.016, R);
+    for (const [dx, dy] of [[0, 0.03], [-0.045, -0.02], [0.045, -0.02]]) { f.cylZ('steelDark', dx, yb + dy, -0.45, 0.032, 0.06, 10, { c: 0x5a6676 }); f.cylZ('glowOrange', dx, yb + dy, -0.481, 0.024, 0.006, 8); }
+    f.box('steel', 0, 0.05, 0.22, 0.012, 0.06, 0.012, { c: 0xaab3bf }); f.cylX('rubber', 0, 0.02, 0.22, 0.02, 0.018, 10); for (const sx of [-1, 1]) { f.box('steel', sx * 0.09, 0.055, -0.14, 0.014, 0.07, 0.014, { c: 0xaab3bf }); f.cylX('rubber', sx * 0.09, 0.024, -0.14, 0.026, 0.024, 12); }
+  });
+  reg('aerospace_works', 3, 3, F => {
+    const y0 = P.slab(F, 3, 3, { drains: [[0.4, 1.3], [-1.2, 0.9]] }), q = F.q, ac = 0xfb7185, vx = -0.55, vz = -0.8, vw = 1.8, vl = 1.3, vh = 0.7, N = q >= 2 ? 20 : q ? 14 : 10;
+    // barrel-vault hangar: corrugated shell, ribs, open front with glowing interior, closed back with roller door
+    vault(F, 'corrug', vx, y0, vz, vw, vl, vh, N, 0xe3e8ee); vaultCap(F, 'corrug', vx, y0, vz - vl / 2, vw, vh, N, -1, 0xe3e8ee);
+    const zf = vz + vl / 2; vaultCap(F, 'black', vx, y0, zf - 0.04, vw - 0.06, vh - 0.03, N, 1, 0x14181f); F.box('glowWhite', vx, y0 + 0.003, zf - 0.12, 1.4, 0.004, 0.1); for (let i = 0; i < 5; i++) F.box('glowWhite', vx - 0.6 + i * 0.3, y0 + 0.55 - Math.abs(i - 2) * 0.12, zf - 0.08, 0.14, 0.01, 0.01);
+    const nr = 6; for (let i = 0; i < nr; i++) { const z = vz - vl / 2 + i * vl / (nr - 1); for (let k = 0; k < N; k++) { const p0 = vaultPt(vx, y0, vw + 0.02, vh + 0.012, k / N * PI), p1 = vaultPt(vx, y0, vw + 0.02, vh + 0.012, (k + 1) / N * PI); F.beam('paint', [p0[0], p0[1], z], [p1[0], p1[1], z], i === 0 || i === nr - 1 ? 0.034 : 0.02, { c: i === nr - 1 ? ac : 0xf8f8f8 }); } }
+    F.box('glassTint', vx, y0 + vh - 0.004, vz, 0.22, 0.02, vl - 0.25); F.box('steelDark', vx, y0 + vh + 0.01, vz, 0.03, 0.02, vl - 0.2); F.cyl('steelDark', vx, y0 + vh, vz - 0.5, 0.008, 0.008, 0.1, 6); F.sphere('glowRed', vx, y0 + vh + 0.105, vz - 0.5, 0.017, 6, 4);
+    F.box('steelDark', -1.0, y0 + 0.01, vz - vl / 2 - 0.004, 0.3, 0.3, 0.012); P.roller(F, -1.0, y0 + 0.05, vz - vl / 2 - 0.004, 0.28, 0.27, PI, 0xc4ccd6); P.conveyor(F, [-1.0, y0 + 0.08, vz - vl / 2 - 0.02], [-1.0, y0 + 0.08, -1.49], 0.15, { floor: y0 }); P.conveyor(F, [-1.25, y0 + 0.08, 1.49], [-1.25, y0 + 0.08, zf - 0.1], 0.15, { floor: y0 }); for (let i = 0; i < 3; i++) F.box('paint', -1.25, y0 + 0.1, 1.25 - i * 0.3, 0.1, 0.05, 0.08, { c: [0xdfe5ec, 0x6a7482, 0xfb7185][i] });
+    // spaceplane on the apron, tow tug, fuel bowser, windsock
+    spaceplane(F, -0.55, y0, 0.3, 0); F.box('paint', -0.55, y0 + 0.001, 0.62, 0.02, 0.002, 0.9, { c: 0xe6b422 }); for (const s of [-1, 1]) F.box('paint', -0.55 + s * 0.45, y0 + 0.001, 0.2, 0.015, 0.002, 0.8, { c: 0xf8f8f8 }); P.forklift(F, -0.2, y0, 0.85, PI / 2, 0xe63946); P.truck(F, -0.55, y0, 1.27, PI / 2, 0xf2f4f8); F.cyl('paint', -1.4, y0, 0.6, 0.011, 0.014, 0.17, 7, { c: 0xdfe5ec }); F.cyl('paint', -1.34, y0 + 0.15, 0.6, 0.03, 0.012, 0.1, 10, { rz: PI / 2, c: 0xf2701a }); F.cyl('paint', -1.34, y0 + 0.15, 0.6, 0.0305, 0.0305, 0.028, 10, { rz: PI / 2, c: 0xf8f8f8 });
+    // launch pad: rocket, hold-down ring, flame trench, umbilical tower with swing arms, LOX spheres
+    const rx = 1.0, rz = -0.85, rb = y0 + 0.14; F.box('concrete', 1.0, y0, -0.85, 0.95, 0.012, 1.25, { c: 0x9aa1ab, tile: 1 }); F.box('black', rx, y0 + 0.011, rz + 0.3, 0.18, 0.003, 0.5, { c: 0x14181f }); F.cyl('steelDark', rx, y0 + 0.012, rz, 0.2, 0.22, 0.1, 18, { c: 0x4b5565 }); for (let i = 0; i < 4; i++) { const a = i * PI / 2 + PI / 4; F.box('steel', rx + Math.cos(a) * 0.16, y0 + 0.11, rz + Math.sin(a) * 0.16, 0.03, 0.03, 0.03, { c: 0xe6b422 }); }
+    for (let i = 0; i < 5; i++) { const a = i * TAU / 5, dx = i ? Math.cos(a) * 0.055 : 0, dz = i ? Math.sin(a) * 0.055 : 0; F.cyl('steelDark', rx + dx, rb - 0.04, rz + dz, 0.034, 0.016, 0.075, 10, { c: 0x4b5565 }); F.cyl('glowOrange', rx + dx, rb - 0.037, rz + dz, 0.012, 0.012, 0.004, 8); }
+    F.cyl('paint', rx, rb, rz, 0.1, 0.1, 0.62, q >= 2 ? 24 : 16, { c: 0xf2f4f8 }); F.cyl('paint', rx, rb + 0.62, rz, 0.082, 0.1, 0.06, 20, { c: 0xe3e8ee }); F.cyl('paint', rx, rb + 0.68, rz, 0.082, 0.082, 0.28, q >= 2 ? 22 : 14, { c: 0xf2f4f8 }); F.cyl('paint', rx, rb + 0.2, rz, 0.102, 0.102, 0.07, 22, { c: 0x2a2f38 }); F.cyl('paint', rx, rb + 0.88, rz, 0.084, 0.084, 0.05, 20, { c: ac });
+    F.lathe('paint', rx, rb + 0.96, rz, [[0.082, 0], [0.078, 0.06], [0.064, 0.13], [0.04, 0.2], [0.014, 0.25], [0.0, 0.265]], q >= 2 ? 22 : 14, { c: 0xf8f8f8 }); for (const k of [0, 1, 2, 3]) { const a = k * PI / 2 + PI / 4; F.at(rx, rb, rz, -a, f => ext(f, 'paint', [[0.098, 0.3], [0.21, 0.08], [0.21, 0.0], [0.098, 0.0]], 'z', -0.007, 0.014, ac)); }
+    F.emitter(rx + 0.1, rb + 0.55, rz, 0.05, true);
+    P.lattice(F, 0.62, y0, rz, 0.2, 0.2, 0.12, 0.12, 1.25, { c: 0xe6e8ee }); for (const [yy, l] of [[0.5, 0.2], [0.88, 0.22]]) { F.box('steel', 0.62 + 0.1 + l / 2, y0 + yy, rz, l, 0.03, 0.04, { c: 0xc2c9d3 }); F.pipe('steelDark', [[0.62 + 0.1 + l, y0 + yy, rz], [0.62 + 0.1 + l + 0.0, y0 + yy - 0.05, rz]], 0.01); } F.cyl('steelDark', 0.62, y0 + 1.25, rz, 0.004, 0.004, 0.12, 5); F.sphere('glowRed', 0.62, y0 + 1.38, rz, 0.014, 6, 4); F.light(0.9, y0 + 0.6, rz + 0.3, [1, 0.9, 0.8], 0.9);
+    for (const z of [-0.35, -1.25]) { const x = 1.3, r = 0.13, cy = y0 + 0.16 + r; F.sphere('paint', x, cy, z, r, 16, 10, { c: 0xf2f4f8 }); F.torus('steel', x, cy, z, r + 0.002, 0.007, 3, 22, { c: 0xc2c9d3 }); for (let i = 0; i < 5; i++) { const a = i * TAU / 5 + 0.3; F.beam('steel', [x + Math.cos(a) * 0.11, y0, z + Math.sin(a) * 0.11], [x + Math.cos(a) * 0.1, cy - 0.02, z + Math.sin(a) * 0.1], 0.012, { c: 0xaab3bf }); } F.cyl('glowCyan', x, y0 + 0.1, z, 0.15, 0.15, 0.01, 16); } F.pipe('steel', [[1.3, y0 + 0.04, -0.35], [1.3, y0 + 0.04, -0.7], [1.15, y0 + 0.04, -0.85]], 0.013, { c: 0x3b82f6 }); F.pipe('steel', [[1.3, y0 + 0.04, -1.25], [1.3, y0 + 0.04, -1.0], [1.15, y0 + 0.04, -0.85]], 0.013, { c: 0xdc2626 }); label(F, 1.3, y0 + 0.22, -0.2, 0, 0x3b82f6);
+    // satellite integration cleanroom with radome and dish, display satellite on a turntable
+    const cy0 = P.hall(F, 1.0, 0.5, 0.8, 0.7, 0.3, { c: 0xf2f4f8, trim: ac, mat: 'panel' }); F.box('concrete', 1.0, cy0, 0.5, 0.84, 0.03, 0.74, { c: 0x9aa1ab }); F.sphere('paint', 1.2, cy0 + 0.03, 0.4, 0.14, 18, 8, { dome: true, c: 0xffffff }); F.torus('steel', 1.2, cy0 + 0.034, 0.4, 0.14, 0.008, 3, 22, { c: 0xc2c9d3 }); F.cyl('steel', 0.82, cy0 + 0.03, 0.4, 0.015, 0.02, 0.08, 8); F.cyl('paint', 0.82, cy0 + 0.11, 0.4, 0.12, 0.02, 0.05, 18, { rx: 0.0, c: 0xf2f4f8 }); F.cyl('steelDark', 0.82, cy0 + 0.16, 0.4, 0.01, 0.01, 0.05, 6);
+    P.windows(F, 1.0, y0 + 0.14, 0.85, 0.6, 0.1, 4, 0); F.box('glowCyan', 1.0, y0 + 0.28, 0.855, 0.78, 0.01, 0.005); P.door(F, 1.3, y0 + 0.03, 0.85, 0.1, 0.17, 0, 0x2a3340); P.hvac(F, 0.85, cy0 + 0.03, 0.62, 0.2, 0.12, 0.07, 0);
+    F.cyl('concrete', 0.2, y0, 1.1, 0.2, 0.22, 0.03, 20, { c: 0x9aa1ab }); F.anim('sat', [0.2, y0 + 0.14, 1.1], 'spin', S => { S.box('gold', 0, 0, 0, 0.09, 0.1, 0.11, { bev: 0.006 }); S.box('steelDark', 0, 0.0, 0.0, 0.092, 0.012, 0.112); for (const s of [-1, 1]) { S.box('steel', s * 0.1, 0, 0, 0.12, 0.006, 0.02, { c: 0xc2c9d3 }); S.box('solar', s * 0.2, 0, 0, 0.1, 0.004, 0.12); S.box('solar', s * 0.3, 0, 0, 0.1, 0.004, 0.12); } S.cyl('paint', 0, 0.09, 0, 0.05, 0.01, 0.035, 12, { c: 0xf2f4f8 }); S.cyl('steelDark', 0, 0.055, 0, 0.008, 0.008, 0.04, 6); }, { axis: 'y', speed: 0.4 }); F.box('steelDark', 0.2, y0 + 0.03, 1.1, 0.02, 0.11, 0.02);
+    lamppost(F, 1.38, y0, 1.34, 0.3); lamppost(F, -1.38, y0, 1.34, 0.3); F.light(1.38, y0 + 0.32, 1.34, [1, 0.9, 0.6], 0.5); P.mast(F, 0.55, 1.4, 0.5, PI);
+  });
+
+  // ------------------------------------------------------------------ carbon-nanotube fab: tall CVD growth column with glowing quartz tube and copper RF coil, glass biodome with a nanotube forest, yarn-spinning rig, rotating nanotube lattice sculpture, silos and gas spheres
+  const sphereTank = (F, x, y0, z, r, col, band, lit) => { const cy = y0 + 0.14 + r; F.sphere('paint', x, cy, z, r, F.q >= 2 ? 16 : 10, F.q >= 2 ? 10 : 6, { c: col }); F.torus('paint', x, cy, z, r + 0.002, 0.012, 3, 22, { c: band }); for (let i = 0; i < 5; i++) { const a = i * TAU / 5 + 0.3; F.beam('steel', [x + Math.cos(a) * r * 0.85, y0, z + Math.sin(a) * r * 0.85], [x + Math.cos(a) * r * 0.76, cy - 0.02, z + Math.sin(a) * r * 0.76], 0.012, { c: 0xaab3bf }); } F.torus('steel', x, y0 + 0.08, z, r * 0.9, 0.006, 3, 16, { c: 0xaab3bf }); F.cyl('steel', x, cy + r, z, 0.02, 0.02, 0.05, 8); if (lit) F.cyl(lit, x, y0 + 0.12, z, r + 0.02, r + 0.02, 0.01, 16); };
+  const tubeSculpture = (S, n, m, R, hgt, nodeMat) => {
+    const dy = hgt / (m - 1), pt = (j, i) => { const a = (i + 0.5 * (j % 2)) * TAU / n; return [Math.cos(a) * R, j * dy, Math.sin(a) * R]; };
+    for (let j = 0; j < m; j++) for (let i = 0; i < n; i++) { const p = pt(j, i); S.box(nodeMat, p[0], p[1] - 0.011, p[2], 0.022, 0.022, 0.022);
+      if (j < m - 1) for (const k of (j % 2 ? [i, i + 1] : [i - 1, i])) { const kk = (k + n) % n, a = pt(j + 1, kk); S.beam('steel', p, a, 0.006, { c: 0xc2c9d3 }); } }
+  };
+  reg('nanotube_fab', 3, 3, F => {
+    const y0 = P.slab(F, 3, 3, { drains: [[-1.2, 1.3], [0.3, 1.3]] }), q = F.q, ac = 0x14b8a6, hx = -0.575, hz = -0.725, hw = 1.75, hd = 1.45, wz = hz + hd / 2;
+    const fy = P.hall(F, hx, hz, hw, hd, 0.5, { c: 0xdce6ea, trim: ac, mat: 'panel' }), ty = fy + 0.03; F.box('concrete', hx, fy, hz, hw + 0.04, 0.03, hd + 0.04, { c: 0x8a95a3 }); F.at(hx, 0, hz, 0, f => P.parapet(f, hw + 0.03, hd + 0.03, ty, 0.05, 0xc2c9d3));
+    // carbon-grass relief on the front wall, windows, doors
+    const ng = q >= 2 ? 36 : q ? 26 : 16; for (let i = 0; i < ng; i++) { const x = hx - hw / 2 + 0.05 + i * (hw - 0.1) / (ng - 1), h = 0.1 + 0.28 * H(i, 4); F.cyl('steelDark', x, y0, wz + 0.014, 0.004, 0.011, h, 5, { c: 0x2a3340 }); F.cyl('glowCyan', x, y0 + h, wz + 0.014, 0.005, 0.005, 0.012, 4); }
+    P.windows(F, -1.0, y0 + 0.3, wz, 0.7, 0.12, 4, 0); P.windows(F, 0.0, y0 + 0.3, wz, 0.3, 0.12, 2, 0); P.windows(F, -1.45, y0 + 0.16, hz, 0.9, 0.16, 5, -PI / 2); P.windows(F, -0.9, y0 + 0.16, hz - hd / 2, 1.0, 0.16, 5, PI); F.box('glowCyan', hx, y0 + 0.46, wz + 0.004, hw - 0.04, 0.012, 0.006);
+    P.roller(F, -0.3, y0 + 0.05, wz, 0.28, 0.25, 0, 0xc4ccd6); P.roller(F, -0.3, y0 + 0.05, hz - hd / 2, 0.28, 0.25, PI, 0xc4ccd6); P.conveyor(F, [-0.3, y0 + 0.08, 1.49], [-0.3, y0 + 0.08, wz + 0.03], 0.14, { floor: y0 }); P.conveyor(F, [-0.3, y0 + 0.08, hz - hd / 2 - 0.02], [-0.3, y0 + 0.08, -1.49], 0.14, { floor: y0 });
+    // roof: rotating nanotube lattice sculpture, scrubbers, HVAC, stack
+    F.cyl('steelDark', -0.85, ty, -0.6, 0.12, 0.14, 0.04, 16, { c: 0x4b5565 }); F.anim('tube', [-0.85, ty + 0.05, -0.6], 'spin', S => tubeSculpture(S, q >= 2 ? 8 : 6, q >= 2 ? 6 : 5, 0.09, 0.34, 'glowCyan'), { axis: 'y', speed: 0.6 }); F.light(-0.85, ty + 0.25, -0.6, [0.3, 1, 0.9], 0.7);
+    for (const [x, z] of [[-0.3, -1.1], [-0.05, -1.1]]) { F.cyl('steel', x, ty, z, 0.07, 0.07, 0.22, 14, { c: 0xdfe5ec }); F.sphere('steel', x, ty + 0.22, z, 0.07, 12, 5, { dome: true, c: 0xdfe5ec }); } F.box('steel', -0.17, ty + 0.33, -1.1, 0.3, 0.04, 0.04, { c: 0xaab3bf }); P.hvac(F, -1.1, ty, -1.1, 0.3, 0.18, 0.09, 0); P.hvac(F, -0.6, ty, -0.2, 0.3, 0.18, 0.09, 0); P.stack(F, 0.1, ty, -1.3, 0.045, 0.034, 0.45, { plain: true, c: 0xc2c9d3, bands: 3, steam: true });
+    // CVD growth column
+    const tx = 0.95, tz = -0.9; F.cyl('concrete', tx, y0, tz, 0.27, 0.29, 0.05, 22, { c: 0x9aa1ab }); F.cyl('steelDark', tx, y0 + 0.05, tz, 0.17, 0.19, 0.32, 20, { c: 0x4b5565 }); for (const k of [0.09, 0.19, 0.29]) F.torus('glowOrange', tx, y0 + 0.05 + k, tz, 0.178, 0.008, 3, 20);
+    F.cyl('glass', tx, y0 + 0.37, tz, 0.1, 0.1, 0.95, q >= 2 ? 20 : 12); F.cyl('glowCyan', tx, y0 + 0.37, tz, 0.045, 0.045, 0.95, 10); for (const yy of [0.37, 1.32]) F.cyl('steelDark', tx, y0 + yy, tz, 0.115, 0.115, 0.03, 18, { c: 0x5a6676 });
+    const turns = 5, sg = q >= 2 ? 10 : 7; for (let i = 0; i < turns * sg; i++) { const a0 = i * TAU / sg, a1 = (i + 1) * TAU / sg, y1 = y0 + 0.42 + i / (turns * sg) * 0.85, y2 = y0 + 0.42 + (i + 1) / (turns * sg) * 0.85; F.beam('copper', [tx + Math.cos(a0) * 0.118, y1, tz + Math.sin(a0) * 0.118], [tx + Math.cos(a1) * 0.118, y2, tz + Math.sin(a1) * 0.118], 0.012); }
+    F.sphere('steel', tx, y0 + 1.35, tz, 0.11, 14, 6, { dome: true, c: 0xc2c9d3 }); F.pipe('steel', [[tx, y0 + 1.46, tz], [tx, y0 + 1.52, tz], [tx - 0.15, y0 + 1.52, tz]], 0.018, { c: 0xaab3bf }); F.sphere('glowCyan', tx, y0 + 1.36, tz, 0.03, 6, 4);
+    for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) F.box('steelDark', tx + sx * 0.19, y0 + 0.05, tz + sz * 0.19, 0.02, 1.2, 0.02, { c: 0x3a4350 }); P.platform(F, tx, y0 + 0.72, tz, 0.5, 0.5, { legs: false }); P.platform(F, tx, y0 + 1.15, tz, 0.5, 0.5, { legs: false }); P.ladder(F, tx + 0.25, y0, tz + 0.1, 1.15, PI / 2, true); F.light(tx, y0 + 0.9, tz + 0.2, [0.3, 1, 0.9], 0.9);
+    for (const [k, c] of [[-0.6, 0xe6b422], [-0.72, 0x3b82f6], [-0.84, 0xdc2626]]) { F.pipe('steel', [[0.3, y0 + 0.2 - (k + 0.6) * 0.2, k], [tx - 0.22, y0 + 0.2 - (k + 0.6) * 0.2, k]], 0.016, { c }); } for (const z of [-0.6, -0.72, -0.84]) F.box('steelDark', 0.55, y0, z, 0.02, 0.2 - (z + 0.6) * 0.2, 0.02);
+    // glass biodome with nanotube forest
+    const dx = 0.95, dz = 0.8, dr = 0.42, dy0 = y0 + 0.04; F.cyl('concrete', dx, y0, dz, dr + 0.04, dr + 0.04, 0.04, 28, { c: 0x9aa1ab }); F.cyl('black', dx, dy0, dz, dr - 0.02, dr - 0.02, 0.006, 24, { c: 0x14181f });
+    for (let gx = -0.36; gx <= 0.361; gx += q >= 2 ? 0.088 : 0.12) for (let gz = -0.36; gz <= 0.361; gz += q >= 2 ? 0.088 : 0.12) { if (Math.hypot(gx, gz) > 0.33) continue; const hh = 0.07 + 0.16 * H(Math.round(gx * 40) + 20, Math.round(gz * 40) + 20); F.cyl('black', dx + gx, dy0 + 0.006, dz + gz, 0.004, 0.01, hh, 4, { c: 0x14181f }); F.cyl('glowCyan', dx + gx, dy0 + 0.006 + hh, dz + gz, 0.006, 0.006, 0.012, 4); }
+    F.sphere('glass', dx, dy0, dz, dr, q >= 2 ? 26 : 16, q >= 2 ? 12 : 8, { dome: true }); F.torus('steel', dx, dy0 + 0.004, dz, dr, 0.012, 3, 28, { c: 0xc2c9d3 }); const nrib = q >= 2 ? 8 : 6, nseg = q >= 2 ? 6 : 4; for (let k = 0; k < nrib; k++) { const a = k * TAU / nrib; for (let j = 0; j < nseg; j++) { const e0 = j / nseg * PI / 2, e1 = (j + 1) / nseg * PI / 2; F.beam('steel', [dx + Math.cos(e0) * Math.cos(a) * dr, dy0 + Math.sin(e0) * dr, dz + Math.cos(e0) * Math.sin(a) * dr], [dx + Math.cos(e1) * Math.cos(a) * dr, dy0 + Math.sin(e1) * dr, dz + Math.cos(e1) * Math.sin(a) * dr], 0.01, { c: 0xdfe5ec }); } } F.light(dx, dy0 + 0.2, dz, [0.3, 1, 0.9], 0.9);
+    // yarn-spinning rig
+    const sx = 0.2, sz = 0.78; F.box('steelDark', sx, y0, sz, 0.3, 0.02, 0.3, { c: 0x4b5565 }); for (const a of [-1, 1]) for (const b of [-1, 1]) F.box('steelDark', sx + a * 0.13, y0 + 0.02, sz + b * 0.13, 0.016, 0.92, 0.016, { c: ac }); F.box('steelDark', sx, y0 + 0.94, sz, 0.3, 0.02, 0.3, { c: 0x4b5565 }); F.box('glowCyan', sx, y0 + 0.14, sz, 0.004, 0.68, 0.004);
+    F.anim('bob', [sx, y0 + 0.82, sz], 'spin', S => { S.cyl('steel', 0, -0.02, 0, 0.012, 0.012, 0.06, 8, { c: 0xdfe5ec }); S.box('steelDark', 0, 0.02, 0, 0.2, 0.012, 0.024); for (const k of [-1, 1]) { S.cyl('paint', k * 0.1, 0, 0, 0.022, 0.022, 0.06, 10, { c: 0x2a3340 }); S.cyl('glowCyan', k * 0.1, 0.0, 0, 0.024, 0.024, 0.016, 10); } }, { axis: 'y', speed: 3 });
+    F.anim('spool', [sx, y0 + 0.06, sz], 'spin', S => { S.cyl('copper', 0, 0, 0, 0.05, 0.05, 0.06, 14); for (const k of [0, 1]) S.cyl('steelDark', 0, k * 0.058, 0, 0.07, 0.07, 0.008, 14); }, { axis: 'y', speed: 2 });
+    // intake: plastic pellet silos, natural-gas spheres, pneumatic line, cylinders
+    for (const x of [-1.3, -1.0]) { P.tank(F, x, y0, 0.5, 0.12, 0.55, { roof: 'cone', c: 0xdce6ea, rings: 3 }); F.torus('paint', x, y0 + 0.3, 0.5, 0.122, 0.01, 3, 16, { c: ac }); } F.pipe('steel', [[-1.3, y0 + 0.6, 0.5], [-1.3, y0 + 0.72, 0.5], [-1.0, y0 + 0.72, 0.5], [-0.62, y0 + 0.72, 0.5], [-0.62, y0 + 0.72, 0.15]], 0.02, { c: 0xaab3bf }); P.ladder(F, -1.15, y0, 0.5, 0.55, PI / 2, false);
+    sphereTank(F, -1.15, y0, 1.12, 0.14, 0xf5e6a8, 0xe63946, null); sphereTank(F, -0.75, y0, 1.12, 0.14, 0xf5e6a8, 0xe63946, null); F.pipe('steel', [[-1.15, y0 + 0.03, 1.0], [-1.15, y0 + 0.03, 0.85], [-0.62, y0 + 0.03, 0.85], [-0.62, y0 + 0.03, 0.9]], 0.014, { c: 0xe6b422 }); P.transformer(F, -1.28, y0, 1.12, 0);
+    for (let i = 0; i < 4; i++) F.cyl('paint', -0.5 + i * 0.065, y0, 0.95, 0.024, 0.024, 0.16, 8, { c: [0x2563eb, 0xdfe5ec, 0xfacc15, 0x16a34a][i] }); for (let i = 0; i < 3; i++) F.box('steel', -0.3, y0 + 0.1 + i * 0.0, 1.2 - i * 0.28, 0.1, 0.03, 0.08, { c: 0x2a3340 }); lamppost(F, 1.38, y0, 1.34, 0.3); lamppost(F, -0.1, y0, 1.34, 0.3); F.light(1.38, y0 + 0.32, 1.34, [1, 0.9, 0.6], 0.5); P.mast(F, 1.38, 0.2, 0.5, PI);
+  });
+})(typeof window !== 'undefined' ? window : globalThis);
+
+/* ---- models_tech4.js ---- */
+/* High-tech IV: quantum_forge (3x3 gold dilution-fridge atrium), advanced_research "Quantum Computer" (3x3 data hall + rotating qubit lattice cube). Ports: forge IN +Z / OUT -Z; research has none. */
+(function (root) {
+  'use strict';
+  const M = root.IEModels, P = root.IEParts, W = P.W, PI = Math.PI, TAU = PI * 2, reg = (t, w, d, f, v) => M.reg(t, w, d, f, v);
+  if (!W) return; const { car, lamppost, solar, H } = W;
+  const bloch = (S, R) => { S.torus('gold', 0, 0, 0, R, 0.008, 4, 28, { rx: PI / 2 }); S.torus('gold', 0, 0, 0, R, 0.008, 4, 28); S.torus('gold', 0, 0, 0, R, 0.008, 4, 28, { rz: PI / 2 }); S.sphere('glowPurple', 0, 0, 0, R * 0.22, 8, 6); S.beam('gold', [0, 0, 0], [R * 0.7, R * 0.7, 0], 0.01); S.sphere('glowPurple', R * 0.7, R * 0.7, 0, 0.018, 6, 4); };
+  // ------------------------------------------------------------------ quantum forge: indigo hall under a glass atrium housing a golden dilution-refrigerator chandelier, laser traps, gold vault, evaporators and ion implanter
+  reg('quantum_forge', 3, 3, F => {
+    const y0 = P.slab(F, 3, 3, { drains: [[-1.2, 1.3], [1.2, 1.3]] }), q = F.q, ac = 0x818cf8, hx = 0, hz = -0.85, hw = 2.9, hd = 1.2, wz = hz + hd / 2, ax = 0.0, az = -0.8, AR = 0.5, AH = 1.4;
+    const fy = P.hall(F, hx, hz, hw, hd, 0.5, { c: 0x2d3250, trim: 0xd4af37, mat: 'panel' }), ty = fy + 0.03; F.box('concrete', hx, fy, hz, hw + 0.04, 0.03, hd + 0.04, { c: 0x4b5270 }); F.at(hx, 0, hz, 0, f => P.parapet(f, hw + 0.03, hd + 0.03, ty, 0.05, 0x6a7194));
+    // facade: bloch-sphere emblem, windows, doors
+    F.box('steelDark', 0.95, y0 + 0.3, wz + 0.006, 0.4, 0.38, 0.01, { c: 0x1e2238 }); F.anim('bloch', [0.95, y0 + 0.3, wz + 0.11], 'spin', S => bloch(S, 0.13), { axis: 'y', speed: 0.5 });
+    P.windows(F, -0.9, y0 + 0.16, wz, 1.0, 0.16, 5, 0); P.windows(F, 0.0, y0 + 0.16, wz, 0.3, 0.16, 2, 0); P.windows(F, -1.45, y0 + 0.16, hz, 0.8, 0.16, 4, -PI / 2); P.windows(F, 1.45, y0 + 0.16, hz, 0.8, 0.16, 4, PI / 2); P.windows(F, -0.9, y0 + 0.16, hz - hd / 2, 1.0, 0.16, 5, PI); P.windows(F, 0.9, y0 + 0.16, hz - hd / 2, 1.0, 0.16, 5, PI); F.box('glowPurple', hx, y0 + 0.46, wz + 0.004, hw - 0.04, 0.012, 0.006);
+    P.roller(F, -0.3, y0 + 0.05, wz, 0.28, 0.25, 0, 0xc4ccd6); P.roller(F, -0.3, y0 + 0.05, hz - hd / 2, 0.28, 0.25, PI, 0xc4ccd6); P.conveyor(F, [-0.3, y0 + 0.08, 1.49], [-0.3, y0 + 0.08, wz + 0.03], 0.14, { floor: y0 }); P.conveyor(F, [-0.3, y0 + 0.08, hz - hd / 2 - 0.02], [-0.3, y0 + 0.08, -1.49], 0.14, { floor: y0 });
+    // glass atrium with the golden chandelier
+    F.cyl('glass', ax, y0, az, AR, AR, AH, q >= 2 ? 36 : 20); for (const yy of [0.62, 0.95, 1.25, AH]) F.torus('steelDark', ax, y0 + yy, az, AR + 0.004, 0.012, 3, q >= 2 ? 36 : 20, { c: 0x3a4350 }); for (let i = 0; i < (q >= 1 ? 12 : 8); i++) { const n = q >= 1 ? 12 : 8, a = i * TAU / n; F.box('steelDark', ax + Math.cos(a) * AR, y0 + 0.58, az + Math.sin(a) * AR, 0.016, AH - 0.58, 0.016, { c: 0x3a4350 }); }
+    F.cyl('glass', ax, y0 + AH, az, AR, AR, 0.02, q >= 2 ? 36 : 20); F.torus('steelDark', ax, y0 + AH + 0.01, az, AR + 0.01, 0.018, 3, q >= 2 ? 36 : 20, { c: 0x2a3340 }); F.cyl('steel', ax, y0 + AH, az, 0.17, 0.17, 0.05, 20, { c: 0xc2c9d3 }); for (let i = 0; i < 3; i++) { const a = i * TAU / 3 + 0.4; F.beam('steelDark', [ax, y0 + AH + 0.02, az], [ax + Math.cos(a) * AR, y0 + AH + 0.02, az + Math.sin(a) * AR], 0.014, { c: 0x2a3340 }); F.cyl('steel', ax + Math.cos(a) * 0.1, y0 + AH + 0.05, az + Math.sin(a) * 0.1, 0.03, 0.035, 0.14, 10, { c: 0xc2c9d3 }); F.cyl('copper', ax + Math.cos(a) * 0.1, y0 + AH + 0.19, az + Math.sin(a) * 0.1, 0.04, 0.04, 0.035, 10); F.pipe('steelDark', [[ax + Math.cos(a) * 0.1, y0 + AH + 0.21, az + Math.sin(a) * 0.1], [ax + Math.cos(a) * 0.4, y0 + AH + 0.28, az + Math.sin(a) * 0.4], [ax + Math.cos(a) * 0.62, y0 + AH + 0.0, az + Math.sin(a) * 0.62], [ax + Math.cos(a) * 0.66, y0 + 0.62, az + Math.sin(a) * 0.66]], 0.011); }
+    for (let i = 0; i < 3; i++) { const a = i * TAU / 3 + 0.4; F.beam('gold', [ax + Math.cos(a) * 0.1, y0 + AH - 0.02, az + Math.sin(a) * 0.1], [ax + Math.cos(a) * 0.36, y0 + 1.28, az + Math.sin(a) * 0.36], 0.012); } const st = [[1.27, 0.4], [1.14, 0.33], [1.01, 0.26], [0.88, 0.19], [0.76, 0.12]];
+    for (let i = 0; i < st.length; i++) { const [yy, r] = st[i]; F.cyl('gold', ax, y0 + yy, az, r, r, 0.014, q >= 2 ? 30 : 20); F.cyl('glowSun', ax, y0 + yy + 0.014, az, r * 0.95, r * 0.95, 0.003, q >= 2 ? 30 : 20); F.torus('copper', ax, y0 + yy - 0.012, az, r * 0.8, 0.007, 3, q >= 2 ? 24 : 14); if (i < st.length - 1) { const [y2, r2] = st[i + 1]; for (let k = 0; k < 4; k++) { const a = k * PI / 2 + i * 0.45; F.cyl('gold', ax + Math.cos(a) * r2 * 0.78, y0 + y2, az + Math.sin(a) * r2 * 0.78, 0.009, 0.009, yy - y2, 6); } } for (let k = 0; k < 3; k++) { const a = k * TAU / 3 + i * 0.8; F.box('gold', ax + Math.cos(a) * r * 0.55, y0 + yy + 0.014, az + Math.sin(a) * r * 0.55, 0.03, 0.02, 0.03, { bev: 0.004 }); } }
+    for (let k = 0; k < 6; k++) { const a = k * TAU / 6 + 0.2; F.beam('gold', [ax + Math.cos(a) * 0.3, y0 + AH - 0.04, az + Math.sin(a) * 0.3], [ax + Math.cos(a) * 0.09, y0 + 0.78, az + Math.sin(a) * 0.09], 0.004); }
+    F.cyl('gold', ax, y0 + 0.64, az, 0.06, 0.06, 0.12, 16); F.anim('qb', [ax, y0 + 0.61, az], 'bob', S => { S.sphere('glowPurple', 0, 0, 0, 0.034, 10, 6); S.torus('glowPurple', 0, 0, 0, 0.05, 0.004, 3, 16); }, { axis: 'y', amp: 0.01, speed: 2 }); F.light(ax, y0 + 0.85, az, [0.6, 0.5, 1], 1.4); F.light(ax, y0 + 1.15, az, [1, 0.75, 0.3], 1.0);
+    for (let k = 0; k < 6; k++) { const a = k * TAU / 6 + 0.3, ex = ax + Math.cos(a) * 0.6, ez = az + Math.sin(a) * 0.6; F.box('steelDark', ex, ty, ez, 0.03, 0.1, 0.03); F.box('steelDark', ex, ty + 0.1, ez, 0.06, 0.05, 0.06, { c: 0x2a3340, bev: 0.006, ry: -a }); F.sphere('glowPurple', ex - Math.cos(a) * 0.035, ty + 0.125, ez - Math.sin(a) * 0.035, 0.014, 6, 4); F.beam('glowPurple', [ex - Math.cos(a) * 0.04, ty + 0.125, ez - Math.sin(a) * 0.04], [ax + Math.cos(a) * 0.02, y0 + 0.64, az + Math.sin(a) * 0.02], 0.004); }
+    // roof: gas handling cabinets, pumps, HVAC
+    for (let i = 0; i < 4; i++) { const x = -1.3 + i * 0.28; F.box('paint', x, ty, -1.2, 0.22, 0.2, 0.14, { c: 0xdfe5ec, bev: 0.008 }); F.box('glowPurple', x, ty + 0.12, -1.2 + 0.072, 0.1, 0.012, 0.003); } for (const x of [1.0, 1.3]) { F.cylX('steelDark', x, ty + 0.07, -1.15, 0.07, 0.2, 14, { c: 0x4b5565 }); F.box('steelDark', x, ty, -1.15, 0.2, 0.02, 0.16); } P.hvac(F, 1.0, ty, -0.5, 0.3, 0.16, 0.09, 0); P.hvac(F, -1.0, ty, -0.5, 0.3, 0.16, 0.09, 0); P.stack(F, 1.4, ty, -1.35, 0.04, 0.03, 0.4, { plain: true, c: 0xc2c9d3, bands: 2, steam: true });
+    // gold vault with barred window, camera masts, fence
+    const vx = -1.1, vz = 0.52; F.box('concrete', vx, y0, vz, 0.66, 0.3, 0.56, { c: 0x6c7480, bev: 0.008 }); F.box('concrete', vx, y0 + 0.3, vz, 0.7, 0.025, 0.6, { c: 0x4b5565 }); F.box('steelDark', vx, y0 + 0.02, vz + 0.285, 0.24, 0.24, 0.02, { c: 0x3a4350, bev: 0.006 }); F.cylZ('steel', vx, y0 + 0.14, vz + 0.3, 0.05, 0.016, 14, { c: 0xc2c9d3 }); F.box('glowAmber', vx + 0.1, y0 + 0.15, vz + 0.297, 0.025, 0.04, 0.004); F.box('black', vx - 0.22, y0 + 0.14, vz + 0.285, 0.14, 0.11, 0.01); for (let i = 0; i < 5; i++) F.box('steelDark', vx - 0.22 - 0.056 + i * 0.028, y0 + 0.14, vz + 0.292, 0.006, 0.11, 0.006);
+    for (let i = 0; i < 3; i++) for (let j = 0; j < 2 - (i % 2); j++) F.box('gold', vx - 0.22 + (j - (2 - (i % 2) - 1) / 2) * 0.05, y0 + 0.103 + i * 0.016, vz + 0.27, 0.045, 0.014, 0.02);
+    for (const [x, z] of [[-1.42, 0.82], [-0.78, 0.82]]) { F.cyl('steelDark', x, y0, z, 0.008, 0.01, 0.3, 6); F.anim('cam', [x, y0 + 0.3, z], 'osc', S => { S.box('paint', 0, 0, 0, 0.03, 0.025, 0.05, { c: 0xdfe5ec }); S.box('glowRed', 0, 0.004, 0.026, 0.01, 0.01, 0.003); }, { axis: 'y', amp: 0.9, speed: 0.5, phase: x }); } P.fence(F, -1.45, 0.2, -0.7, 0.2, y0, 0.1); P.fence(F, -1.45, 0.2, -1.45, 0.9, y0, 0.1); P.fence(F, -1.45, 0.9, -0.7, 0.9, y0, 0.1); P.fence(F, -0.7, 0.2, -0.7, 0.9, y0, 0.1);
+    // evaporation bell jars, ion implanter, control racks
+    for (let i = 0; i < 3; i++) { const x = 0.35 + i * 0.35, z = 0.5; F.box('paint', x, y0, z, 0.22, 0.14, 0.22, { c: 0xdfe5ec, bev: 0.01 }); F.cyl('glass', x, y0 + 0.14, z, 0.09, 0.09, 0.2, 18); F.cyl('steel', x, y0 + 0.34, z, 0.092, 0.092, 0.012, 18, { c: 0xc2c9d3 }); F.cyl('glowAmber', x, y0 + 0.145, z, 0.04, 0.04, 0.012, 10); F.sphere('gold', x, y0 + 0.17, z, 0.032, 8, 5, { dome: true }); F.pipe('steelDark', [[x, y0 + 0.34, z], [x, y0 + 0.44, z], [x + 0.05, y0 + 0.44, z - 0.16]], 0.01); F.box('steelDark', x + 0.05, y0, z - 0.2, 0.1, 0.1, 0.07, { c: 0x4b5565 }); }
+    F.box('paint', 0.8, y0, 1.1, 1.0, 0.16, 0.16, { c: 0xdfe5ec, bev: 0.01 }); F.cylX('steel', 0.8, y0 + 0.2, 1.1, 0.03, 1.0, 12, { c: 0xc2c9d3 }); for (const dx of [-0.3, 0.0, 0.3]) { F.box('paint', 0.8 + dx, y0 + 0.16, 1.1, 0.1, 0.09, 0.12, { c: 0x818cf8, bev: 0.008 }); F.torus('copper', 0.8 + dx, y0 + 0.2, 1.1, 0.045, 0.012, 4, 14, { rz: PI / 2 }); } F.box('glowPurple', 0.8, y0 + 0.1, 1.182, 0.5, 0.03, 0.004); F.box('steelDark', 1.28, y0, 1.1, 0.1, 0.2, 0.2); F.box('glowPurple', 1.28, y0 + 0.15, 1.202, 0.05, 0.03, 0.003);
+    for (let i = 0; i < 3; i++) F.box('steel', -0.3, y0 + 0.1, 1.2 - i * 0.28, 0.1, 0.03, 0.08, { c: 0xd4af37 });
+    P.transformer(F, 1.2, y0, 0.6, 0); lamppost(F, 1.38, y0, 1.34, 0.3); lamppost(F, -0.1, y0, 1.34, 0.3); F.light(1.38, y0 + 0.32, 1.34, [1, 0.9, 0.6], 0.5); P.mast(F, 1.38, 0.2, 0.5, PI);
+  });
+
+  // ------------------------------------------------------------------ quantum computer: LED server hall, glass cube housing a rotating qubit lattice inside armillary halos, circuit-trace plaza, chillers, UPS, substation, uplink dish
+  reg('advanced_research', 3, 3, F => {
+    const y0 = P.slab(F, 3, 3, { drains: [[-1.2, 1.3], [1.2, 1.3]] }), q = F.q, ac = 0xa855f7, hx = 0, hz = -1.0, hw = 2.9, hd = 0.9, wz = hz + hd / 2;
+    const fy = P.hall(F, hx, hz, hw, hd, 0.45, { c: 0x2a2f3c, trim: ac, mat: 'panel' }), ty = fy + 0.03; F.box('concrete', hx, fy, hz, hw + 0.04, 0.03, hd + 0.04, { c: 0x4b5565 }); F.at(hx, 0, hz, 0, f => P.parapet(f, hw + 0.03, hd + 0.03, ty, 0.05, 0x6a7482));
+    // LED server windows
+    F.box('steelDark', 0, y0 + 0.07, wz + 0.004, 2.6, 0.3, 0.012); F.box('glassTint', 0, y0 + 0.075, wz + 0.01, 2.56, 0.28, 0.004); const cols = ['glowCyan', 'glowPurple', 'glowGreen', 'glowBlue']; for (let r = 0; r < 12; r++) { const x = -1.2 + r * 0.218; F.box('black', x, y0 + 0.085, wz + 0.013, 0.17, 0.26, 0.004); for (let k = 0; k < 4; k++) F.box(cols[(r + k) % 4], x - 0.05 + (H(r, k) * 0.05), y0 + 0.11 + k * 0.055, wz + 0.016, 0.04 + 0.05 * H(k, r + 3), 0.01, 0.003); }
+    F.box('glowPurple', hx, y0 + 0.4, wz + 0.004, hw - 0.04, 0.012, 0.006); P.windows(F, -1.45, y0 + 0.14, hz, 0.6, 0.14, 3, -PI / 2); P.windows(F, 1.45, y0 + 0.14, hz, 0.6, 0.14, 3, PI / 2); P.door(F, -1.1, y0 + 0.03, wz, 0.12, 0.2, 0, 0x2a2f3c);
+    // roof chillers with spinning fans, ducting, cable bridge
+    for (let i = 0; i < 6; i++) { const x = -1.2 + i * 0.48; F.box('paint', x, ty, -1.0, 0.38, 0.1, 0.4, { c: 0xdfe5ec, bev: 0.008 }); F.cyl('black', x, ty + 0.1, -1.0, 0.15, 0.15, 0.008, 20); F.anim('cf', [x, ty + 0.108, -1.0], 'spin', S => { for (let k = 0; k < 5; k++) S.box('steelDark', Math.cos(k * TAU / 5) * 0.07, 0, Math.sin(k * TAU / 5) * 0.07, 0.14, 0.006, 0.04, { ry: -k * TAU / 5 }); }, { axis: 'y', speed: 7, phase: i }); }
+    P.cableTray(F, -1.4, ty + 0.14, -0.7, 1.4, -0.7); P.stack(F, 1.42, ty, -1.3, 0.04, 0.03, 0.35, { plain: true, c: 0xc2c9d3, bands: 2, steam: true });
+    // plaza with circuit traces, glass cube with rotating qubit lattice and armillary halos
+    const cx = 0.0, cz = 0.45, cs = 0.64, cb = y0 + 0.29; F.box('concrete', cx, y0, cz, 1.2, 0.012, 1.2, { c: 0x3a4350, tile: 1 }); for (let i = 0; i < 8; i++) { const a = i * PI / 4, l = 0.3, mx = cx + Math.cos(a) * (0.3 + l / 2), mz = cz + Math.sin(a) * (0.3 + l / 2); F.box('glowCyan', mx, y0 + 0.012, mz, i % 2 ? 0.012 : 0.012, 0.003, l * (i % 2 ? 0.7 : 1), { ry: -a + PI / 2 }); F.box('glowPurple', cx + Math.cos(a) * 0.62, y0 + 0.012, cz + Math.sin(a) * 0.62, 0.04, 0.004, 0.04, { ry: -a }); }
+    F.box('steelDark', cx, y0 + 0.012, cz, 0.84, 0.05, 0.84, { c: 0x2a2f3c, bev: 0.008 }); F.box('glowPurple', cx, y0 + 0.062, cz, 0.76, 0.004, 0.76); F.box('black', cx, y0 + 0.066, cz, 0.72, 0.004, 0.72); F.box('steelDark', cx, y0 + 0.07, cz, 0.5, 0.22, 0.5, { c: 0x2a2f3c }); F.box('glowPurple', cx, y0 + 0.16, cz, 0.52, 0.012, 0.52);
+    F.box('glass', cx, cb, cz, cs, cs, cs, { bev: 0.0 }); for (const sx of [-1, 1]) for (const sz of [-1, 1]) { F.box('alu', cx + sx * cs / 2, cb, cz + sz * cs / 2, 0.02, cs, 0.02, { c: 0xc2c9d3 }); } for (const yy of [0, cs - 0.02]) { for (const s of [-1, 1]) { F.box('alu', cx + s * cs / 2, cb + yy, cz, 0.02, 0.02, cs, { c: 0xc2c9d3 }); F.box('alu', cx, cb + yy, cz + s * cs / 2, cs, 0.02, 0.02, { c: 0xc2c9d3 }); } }
+    const cc = [cx, cb + cs / 2, cz], sp = 0.17; F.anim('core', cc, 'spin', S => { const nn = []; for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) for (let k = -1; k <= 1; k++) { S.box((i + j + k) % 2 ? 'glowCyan' : 'glowPurple', i * sp - 0.018, j * sp - 0.018, k * sp - 0.018, 0.036, 0.036, 0.036); if (i < 1) S.beam('alu', [i * sp, j * sp, k * sp], [(i + 1) * sp, j * sp, k * sp], 0.006, { c: 0xdfe5ec }); if (j < 1) S.beam('alu', [i * sp, j * sp, k * sp], [i * sp, (j + 1) * sp, k * sp], 0.006, { c: 0xdfe5ec }); if (k < 1) S.beam('alu', [i * sp, j * sp, k * sp], [i * sp, j * sp, (k + 1) * sp], 0.006, { c: 0xdfe5ec }); } }, { axis: 'y', speed: 0.45 });
+    F.anim('h1', cc, 'spin', S => S.torus('gold', 0, 0, 0, 0.5, 0.012, 4, q >= 2 ? 40 : 26, { rx: PI / 2 }), { axis: 'y', speed: 0.5 }); F.anim('h2', cc, 'spin', S => S.torus('gold', 0, 0, 0, 0.46, 0.01, 4, q >= 2 ? 40 : 26), { axis: 'y', speed: -0.35, rot: [0.7, 0, 0.45] }); F.anim('h3', cc, 'spin', S => S.torus('gold', 0, 0, 0, 0.42, 0.009, 4, q >= 2 ? 36 : 22, { rz: PI / 2 }), { axis: 'y', speed: 0.7, phase: 1.2 }); F.light(cx, cc[1], cz, [0.6, 0.6, 1], 1.4);
+    // cooling plant (right): towers, chillers, piping; UPS and generators
+    for (const z of [0.1, 0.6]) { P.coolingTower(F, 1.15, y0, z, 0.17, 0.12, 0.42, { c: 0xa3abb7 }); F.emitter(1.15, y0 + 0.48, z, 0.1, true); } for (let i = 0; i < 3; i++) { F.box('paint', 1.25, y0, 1.0 + i * 0.0, 0.0001, 0.0001, 0.0001); } F.box('paint', 0.8, y0, 1.15, 0.3, 0.14, 0.2, { c: 0xdfe5ec, bev: 0.01 }); F.cyl('black', 0.72, y0 + 0.14, 1.15, 0.07, 0.07, 0.006, 14); F.cyl('black', 0.88, y0 + 0.14, 1.15, 0.07, 0.07, 0.006, 14); F.pipe('steel', [[0.95, y0 + 0.1, 1.15], [1.15, y0 + 0.1, 1.15], [1.15, y0 + 0.1, 0.7]], 0.02, { c: 0x3b82f6 }); F.pipe('steel', [[0.95, y0 + 0.06, 1.2], [1.3, y0 + 0.06, 1.2], [1.3, y0 + 0.06, 0.1], [1.15, y0 + 0.06, 0.1]], 0.02, { c: 0xdc2626 });
+    for (let i = 0; i < 3; i++) { P.container(F, 1.25, y0, -0.35 + i * 0.0, 0, 0x6a7482, 0.0001); } P.container(F, 0.95, y0, -0.35, PI / 2, 0x4b5565, 0.9); F.box('glowGreen', 0.95, y0 + 0.1, -0.35 + 0.0, 0.003, 0.01, 0.0); P.container(F, 1.3, y0, -0.35, PI / 2, 0x4b5565, 0.9); P.container(F, 1.3, y0, -0.62, PI / 2, 0x8a95a3, 0.9);
+    // substation and uplink (left)
+    P.transformer(F, -1.2, y0, 0.0, 0); P.transformer(F, -0.95, y0, 0.0, 0); P.lattice(F, -1.25, y0, 0.55, 0.14, 0.14, 0.05, 0.05, 1.1, { c: 0xe6e8ee }); F.sphere('glowRed', -1.25, y0 + 1.13, 0.55, 0.014, 6, 4); for (const yy of [0.5, 0.8]) F.cylZ('paint', -1.25, y0 + yy, 0.55 + 0.1, 0.07, 0.03, 16, { c: 0xf2f4f8 });
+    F.cyl('steelDark', -1.1, y0, 1.1, 0.02, 0.025, 0.2, 8); F.anim('dish', [-1.1, y0 + 0.22, 1.1], 'osc', S => { S.cyl('paint', 0, 0.0, 0, 0.17, 0.02, 0.07, 20, { c: 0xf2f4f8 }); S.cyl('steelDark', 0, 0.07, 0, 0.01, 0.01, 0.06, 6); S.sphere('glowCyan', 0, 0.14, 0, 0.012, 6, 4); }, { axis: 'y', amp: 0.7, speed: 0.4 }); P.shed(F, -0.7, y0, 1.1, 0.3, 0.2, 0.18, 0xdfe5ec); lamppost(F, 1.38, y0, 1.34, 0.3); lamppost(F, -0.4, y0, 1.34, 0.3); F.light(1.38, y0 + 0.32, 1.34, [1, 0.9, 0.6], 0.5);
+  });
+})(typeof window !== 'undefined' ? window : globalThis);
+
+/* ---- models_tech5.js ---- */
+/* High-tech V: research_center (2x2 R&D campus), antimatter_synth (4x3 accelerator ring), dyson_assembler (4x4 star-core megastructure). */
+(function (root) {
+  'use strict';
+  const M = root.IEModels, P = root.IEParts, W = P.W, PI = Math.PI, TAU = PI * 2, reg = (t, w, d, f, v) => M.reg(t, w, d, f, v);
+  if (!W) return; const { lawn, tree, lamppost, bench, car, solar, H } = W;
+  const helix = (S, R, hgt, n, turns) => { let pa = null, pb = null; for (let i = 0; i < n; i++) { const t = i / (n - 1), a = t * turns * TAU, y = t * hgt, A = [Math.cos(a) * R, y, Math.sin(a) * R], B = [-A[0], y, -A[2]]; S.sphere('glowPurple', A[0], y, A[2], 0.014, 5, 4); S.sphere('glowCyan', B[0], y, B[2], 0.014, 5, 4); if (i % 2 === 0) S.beam('steel', A, B, 0.005, { c: 0xdfe5ec }); if (pa) { S.beam('steel', pa, A, 0.007, { c: 0xc2c9d3 }); S.beam('steel', pb, B, 0.007, { c: 0xc2c9d3 }); } pa = A; pb = B; } };
+  // ------------------------------------------------------------------ R&D campus: glass-and-white lab block with atrium, rotating observatory dome, uplink dish, DNA helix sculpture, anemometer, lawns and paths
+  reg('research_center', 2, 2, F => {
+    const y0 = lawn(F, 2, 2, { kerb: 0xb4b9c1, grass: 0x5aa84a }), q = F.q, ac = 0xa855f7, bx = 0.2, bz = -0.5, bw = 1.3, bd = 0.7, bh = 0.6, ry = y0 + 0.05 + bh;
+    F.box('concrete', bx, y0, bz, bw + 0.04, 0.03, bd + 0.04, { c: 0x9aa1ab }); F.box('facade', bx, y0 + 0.03, bz, bw, bh, bd, { tile: 0.4, bev: 0.006, c: 0xe9eef3 }); F.box('concrete', bx, y0 + 0.03 + bh, bz, bw + 0.04, 0.02, bd + 0.04, { c: 0x9aa1ab }); F.at(bx, 0, bz, 0, f => P.parapet(f, bw + 0.03, bd + 0.03, ry, 0.04, 0xd4d9e0));
+    F.box('paint', bx, y0 + 0.5, bz + bd / 2 + 0.004, bw, 0.02, 0.006, { c: ac }); F.box('glowPurple', bx, y0 + 0.2, bz + bd / 2 + 0.004, bw, 0.008, 0.006); P.door(F, 0.4, y0 + 0.03, bz + bd / 2, 0.16, 0.2, 0, 0x2a3340); F.box('paint', 0.4, y0 + 0.24, bz + bd / 2 + 0.07, 0.3, 0.014, 0.14, { c: ac, bev: 0.004 });
+    // atrium
+    const ax = -0.45, az = -0.15; F.cyl('glass', ax, y0, az, 0.3, 0.3, 0.72, q >= 2 ? 28 : 16); for (const yy of [0.02, 0.26, 0.5, 0.72]) F.torus('steelDark', ax, y0 + yy, az, 0.302, 0.01, 3, q >= 2 ? 28 : 16, { c: 0x3a4350 }); for (let i = 0; i < 10; i++) { const a = i * TAU / 10; F.box('steelDark', ax + Math.cos(a) * 0.3, y0 + 0.02, az + Math.sin(a) * 0.3, 0.012, 0.7, 0.012, { c: 0x3a4350 }); }
+    F.cyl('concrete', ax, y0 + 0.72, az, 0.32, 0.32, 0.02, 28, { c: 0xdfe3e8 }); F.cyl('paint', ax, y0 + 0.74, az, 0.1, 0.1, 0.01, 14, { c: ac }); F.anim('holo', [ax, y0 + 0.36, az], 'bob', S => { S.sphere('glowPurple', 0, 0, 0, 0.055, 10, 7); S.torus('glowCyan', 0, 0, 0, 0.085, 0.004, 3, 20); }, { axis: 'y', amp: 0.02, speed: 1.5 }); F.light(ax, y0 + 0.36, az, [0.7, 0.5, 1], 0.8);
+    // roof: observatory dome, uplink dish, hoods, solar
+    F.cyl('concrete', 0.7, ry, bz, 0.21, 0.21, 0.05, 20, { c: 0xc9ccd2 }); F.anim('dome', [0.7, ry + 0.05, bz], 'spin', S => { S.sphere('paint', 0, 0, 0, 0.19, q >= 2 ? 20 : 12, q >= 2 ? 10 : 7, { dome: true, c: 0xf8f8f8 }); S.box('black', 0, 0.0, 0.165, 0.05, 0.17, 0.02); S.torus('steel', 0, 0.002, 0, 0.19, 0.008, 3, 20, { c: 0xc2c9d3 }); S.box('steelDark', 0, 0.17, 0.0, 0.02, 0.02, 0.4); }, { axis: 'y', speed: 0.12 });
+    F.cyl('steelDark', 0.25, ry, bz - 0.12, 0.014, 0.018, 0.12, 8); F.anim('dish', [0.25, ry + 0.12, bz - 0.12], 'osc', S => { S.cyl('paint', 0, 0, 0, 0.13, 0.02, 0.055, 18, { c: 0xf2f4f8 }); S.cyl('steelDark', 0, 0.055, 0, 0.008, 0.008, 0.06, 6); S.sphere('glowCyan', 0, 0.115, 0, 0.012, 6, 4); }, { axis: 'y', amp: 0.8, speed: 0.4 });
+    for (const x of [-0.1, 0.0]) { F.cyl('steel', x, ry, bz + 0.2, 0.03, 0.03, 0.14, 8, { c: 0xdfe5ec }); F.cyl('steelDark', x, ry + 0.14, bz + 0.2, 0.036, 0.036, 0.01, 8); } P.hvac(F, 0.0, ry, bz - 0.2, 0.26, 0.14, 0.08, 0); solar(F, 0.45, ry, bz + 0.2, 0.5, 0.2, -0.3); P.mast(F, 0.85, bz - 0.3, 0.3, 0, ry);
+    // DNA helix sculpture on a plaza
+    F.cyl('concrete', 0.55, y0, 0.55, 0.3, 0.3, 0.012, 26, { c: 0xd8dade }); F.cyl('steelDark', 0.55, y0 + 0.012, 0.55, 0.1, 0.12, 0.05, 14, { c: 0x3a4350 }); F.cyl('glowPurple', 0.55, y0 + 0.062, 0.55, 0.11, 0.11, 0.006, 14); F.anim('dna', [0.55, y0 + 0.08, 0.55], 'spin', S => helix(S, 0.065, 0.55, q >= 2 ? 22 : q ? 16 : 11, 2.2), { axis: 'y', speed: 0.7 }); F.light(0.55, y0 + 0.4, 0.55, [0.7, 0.5, 1], 0.8);
+    // anemometer + weather mast, paths, planting, benches, parking
+    F.cyl('steelDark', -0.75, y0, 0.55, 0.01, 0.013, 0.5, 6); F.box('paint', -0.75, y0 + 0.2, 0.55, 0.05, 0.07, 0.04, { c: 0xdfe5ec }); F.anim('anem', [-0.75, y0 + 0.51, 0.55], 'spin', S => { for (let i = 0; i < 3; i++) { const a = i * TAU / 3; S.beam('steel', [0, 0, 0], [Math.cos(a) * 0.06, 0, Math.sin(a) * 0.06], 0.004); S.sphere('paint', Math.cos(a) * 0.065, 0, Math.sin(a) * 0.065, 0.014, 6, 4, { c: 0xe63946 }); } }, { axis: 'y', speed: 4 });
+    F.box('concrete', 0.4, y0, 0.15, 0.16, 0.008, 0.5, { c: 0xcbcfd5 }); F.box('concrete', -0.1, y0, 0.55, 0.7, 0.008, 0.12, { c: 0xcbcfd5 }); F.box('concrete', -0.45, y0, 0.3, 0.14, 0.008, 0.4, { c: 0xcbcfd5 });
+    bench(F, 0.25, y0, 0.78, PI); bench(F, 0.85, y0, 0.78, PI); bench(F, -0.2, y0, 0.78, PI); lamppost(F, 0.35, y0, 0.32, 0.26); lamppost(F, -0.6, y0, 0.32, 0.26); F.light(0.35, y0 + 0.28, 0.32, [1, 0.9, 0.6], 0.5);
+    F.box('asphalt', 0.82, y0, 0.2, 0.3, 0.006, 0.5, { c: 0x3a3f47, tile: 1 }); car(F, 0.82, y0 + 0.006, 0.1, 0, 0x3b82f6); car(F, 0.82, y0 + 0.006, 0.34, 0, 0xdfe5ec);
+    for (const [x, z, s, k] of [[-0.85, -0.85, 1.1, 0], [-0.88, 0.0, 0.9, 2], [0.88, 0.88, 1.0, 1], [-0.25, 0.92, 0.8, 3], [0.15, 0.86, 0.7, 0]]) tree(F, x, y0, z, s, k);
+  });
+  // ------------------------------------------------------------------ antimatter synthesiser: elevated synchrotron ring (blue dipoles / red quadrupoles / gold RF cavities) with counter-rotating bunches around a gimballed containment trap; linac + injector hall, shielded vault, control bunker, cryo + pulsed-power yard
+  reg('antimatter_synth', 4, 3, F => {
+    const y0 = P.slab(F, 4, 3, { drains: [[-1.7, 1.3], [1.7, -1.3]] }), q = F.q, ac = 0xe879f9, cx = -1.0, cz = -0.15, R = 0.85, ya = y0 + 0.36, hl = ya - y0 - 0.012, N = q >= 2 ? 24 : 16, ns = 64, step = TAU / N;
+    const rp = (a, r) => [cx + Math.cos(a) * r, cz + Math.sin(a) * r];
+    // ring floor, legs, vacuum pipe
+    F.cyl('concrete', cx, y0, cz, R + 0.13, R + 0.13, 0.012, 56, { c: 0x9aa1ab }); F.cyl('asphalt', cx, y0 + 0.012, cz, R - 0.1, R - 0.1, 0.004, 48, { c: 0x2a2f3a }); F.torus('paint', cx, y0 + 0.016, cz, R + 0.1, 0.008, 3, 48, { c: 0xfacc15 });
+    for (let k = 0; k < 8; k++) { const a = k * TAU / 8 + TAU / 16, [x, z] = rp(a, R); F.at(x, y0 + 0.012, z, -a - PI / 2, f => { f.box('steelDark', 0, 0, 0, 0.2, 0.016, 0.12, { c: 0x2a3340 }); f.box('steelDark', 0, 0.016, 0, 0.04, hl - 0.09, 0.05, { c: 0x3a4350 }); f.box('steel', 0, hl - 0.075, 0, 0.2, 0.018, 0.1, { c: 0xc2c9d3 }); }); }
+    F.torus('alu', cx, ya, cz, R, 0.03, 6, 48, { c: 0xc2c9d3 });
+    // magnets: blue dipoles, red quadrupoles, gold RF cavities
+    const cav = [0, 1, 2, 3].map(k => Math.round(N / 8) + k * N / 4);
+    for (let i = 0; i < N; i++) {
+      const a = (i + 0.5) * step, [x, z] = rp(a, R), isC = cav.indexOf(i) >= 0;
+      F.at(x, ya, z, -a - PI / 2, f => {
+        if (isC) { f.cylX('gold', 0, 0, 0, 0.072, 0.1, 18); for (const s of [-1, 1]) f.cylX('copper', s * 0.05, 0, 0, 0.078, 0.012, 14); f.cylX('steel', 0, 0, 0, 0.044, 0.2, 12, { c: 0xc2c9d3 }); f.box('paint', 0, 0.07, 0, 0.05, 0.09, 0.05, { c: 0xdfe5ec }); f.box('glowAmber', 0, 0.16, 0, 0.034, 0.008, 0.034); }
+        else if (i % 2 === 0) { f.box('paint', 0, -0.055, 0, 0.17, 0.11, 0.12, { c: 0x2563eb }); for (const s of [-1, 1]) f.box('copper', s * 0.088, -0.05, 0, 0.014, 0.1, 0.13); f.box('steelDark', 0, 0.055, 0, 0.1, 0.01, 0.08, { c: 0x1e3a8a }); }
+        else { f.box('paint', 0, -0.05, 0, 0.1, 0.1, 0.1, { c: 0xdc2626 }); f.box('glowCyan', 0, 0.05, 0, 0.022, 0.008, 0.022); }
+      });
+    }
+    // beam hologram with counter-rotating bunches
+    const yb = ya + 0.1; F.torus('glowMagenta', cx, yb, cz, R, 0.005, 3, 48);
+    for (let k = 0; k < 8; k++) { const [x, z] = rp(k * TAU / 8 + 0.2, R); F.cyl('glowMagenta', x, ya + 0.058, z, 0.004, 0.004, yb - ya - 0.058, 5); }
+    F.anim('bunchA', [cx, yb, cz], 'spin', S => { for (const s of [0, PI]) S.sphere('glowMagenta', Math.cos(s) * R, 0, Math.sin(s) * R, 0.026, 8, 6); }, { axis: 'y', speed: 1.4 });
+    F.anim('bunchB', [cx, yb, cz], 'spin', S => { for (const s of [PI / 2, PI * 1.5]) S.sphere('glowCyan', Math.cos(s) * R, 0, Math.sin(s) * R, 0.026, 8, 6); }, { axis: 'y', speed: -1.4 });
+    // containment trap at the ring centre
+    F.cyl('concrete', cx, y0 + 0.012, cz, 0.27, 0.3, 0.14, 28, { c: 0x7a828e }); F.torus('paint', cx, y0 + 0.152, cz, 0.26, 0.012, 3, 28, { c: 0xfacc15 }); F.cyl('steelDark', cx, y0 + 0.152, cz, 0.2, 0.22, 0.03, 24, { c: 0x2a3340 }); F.cyl('steel', cx, y0 + 0.182, cz, 0.06, 0.1, 0.08, 14, { c: 0xc2c9d3 });
+    for (let k = 0; k < 6; k++) { const a = k * PI / 3, [ex, ez] = rp(a, 0.14), [e2x, e2z] = rp(a, 0.185), [e3x, e3z] = rp(a, 0.195); F.beam('gold', [ex, ya, ez], [e2x, ya, e2z], 0.016); F.box('steelDark', e3x, ya - 0.02, e3z, 0.04, 0.04, 0.04, { c: 0x2a3340 }); }
+    for (let k = 0; k < 4; k++) { const a = k * PI / 2 + PI / 4, [x0, z0] = rp(a, 0.3), [x1, z1] = rp(a, R - 0.12); P.cableTray(F, x0, y0 + 0.012, z0, x1, z1); }
+    F.sphere('glass', cx, ya, cz, 0.16, 14, 10); F.sphere('glowMagenta', cx, ya, cz, 0.1, 14, 10); F.torus('glowWhite', cx, ya, cz, 0.104, 0.005, 3, 24); F.light(cx, ya + 0.05, cz, [0.95, 0.45, 0.95], 1.6);
+    F.anim('gim1', [cx, ya, cz], 'spin', S => { S.torus('copper', 0, 0, 0, 0.215, 0.012, 5, 30, { rx: PI / 2 }); for (let k = 0; k < 4; k++) { const a = k * PI / 2; S.box('steel', Math.cos(a) * 0.215, Math.sin(a) * 0.215 - 0.025, 0, 0.05, 0.05, 0.036, { c: 0xc2c9d3 }); } }, { axis: 'y', speed: 0.9 });
+    F.anim('gim2', [cx, ya, cz], 'spin', S => { S.torus('gold', 0, 0, 0, 0.255, 0.01, 5, 30, { rz: PI / 2 }); for (let k = 0; k < 4; k++) { const a = k * PI / 2 + PI / 4; S.box('copper', 0, Math.sin(a) * 0.255 - 0.02, Math.cos(a) * 0.255, 0.036, 0.04, 0.04); } }, { axis: 'x', speed: -1.2 });
+    // linac with klystrons
+    const lx0 = cx + R + 0.07, lx1 = 0.8; F.cylX('alu', (lx0 + lx1) / 2, ya, cz, 0.04, lx1 - lx0, 14, { c: 0xc2c9d3 });
+    for (const x of [lx0 + 0.12, lx0 + 0.42, lx0 + 0.72]) { F.box('steelDark', x, y0, cz, 0.05, ya - y0 - 0.045, 0.12, { c: 0x3a4350 }); F.box('steel', x, ya - 0.045, cz, 0.06, 0.012, 0.13); }
+    for (let i = 0; i < 6; i++) { const x = lx0 + 0.07 + i * 0.13, s = i % 2 ? 1 : -1, kx = x + 0.065, kz = cz + s * 0.16; F.torus('copper', x, ya, cz, 0.06, 0.013, 3, 10, { rz: PI / 2 }); F.cyl('paint', kx, y0, kz, 0.04, 0.04, 0.2, 12, { c: 0x3b82f6 }); F.cyl('steelDark', kx, y0 + 0.2, kz, 0.043, 0.043, 0.012, 12); F.box('glowCyan', kx, y0 + 0.08, kz + s * 0.039, 0.02, 0.06, 0.004); F.beam('steel', [kx, y0 + 0.2, kz], [kx, ya, cz + s * 0.045], 0.014); }
+    // injector hall (IN port)
+    const ix = 1.375, iz = 0.05, iw = 1.15, id = 0.9, fy = P.hall(F, ix, iz, iw, id, 0.5, { c: 0x2b2f3a, trim: ac, mat: 'panel' }), ty = fy + 0.03, fz = iz + id / 2;
+    F.box('concrete', ix, fy, iz, iw + 0.04, 0.03, id + 0.04, { c: 0x4b5565 }); F.at(ix, 0, iz, 0, f => P.parapet(f, iw + 0.03, id + 0.03, ty, 0.05, 0x6a7482)); F.box('glowMagenta', ix, y0 + 0.44, fz + 0.004, iw - 0.04, 0.012, 0.006);
+    P.windows(F, 1.05, y0 + 0.16, fz, 0.3, 0.14, 2, 0); P.windows(F, 1.95, y0 + 0.16, iz, 0.5, 0.14, 3, PI / 2); P.windows(F, ix, y0 + 0.16, iz - id / 2, 0.6, 0.14, 3, PI); P.roller(F, 1.5, y0 + 0.05, fz, 0.26, 0.25, 0, 0xc4ccd6); P.conveyor(F, [1.5, y0 + 0.08, 1.49], [1.5, y0 + 0.08, fz + 0.03], 0.14, { floor: y0 });
+    F.cylX('steel', 0.8, ya, cz, 0.065, 0.04, 14, { c: 0xc2c9d3 });
+    for (const x of [1.0, 1.22]) { F.box('paint', x, ty, -0.22, 0.2, 0.18, 0.14, { c: 0xdfe5ec }); F.box('glowMagenta', x, ty + 0.1, -0.22 + 0.072, 0.1, 0.012, 0.003); } P.hvac(F, 1.7, ty, -0.15, 0.3, 0.16, 0.09, 0);
+    F.cyl('steelDark', 1.1, ty, 0.3, 0.014, 0.018, 0.14, 8); F.anim('emb', [1.1, ty + 0.27, 0.3], 'spin', S => { S.torus('glowMagenta', 0, 0, 0, 0.12, 0.011, 4, 26, { rx: PI / 2 }); S.box('glowWhite', 0, -0.012, 0, 0.1, 0.024, 0.016); S.box('glowWhite', 0, -0.05, 0, 0.024, 0.1, 0.016); }, { axis: 'y', speed: 0.8 });
+    // shielded storage vault (OUT port) with Penning traps
+    const vx = 1.375, vz = -0.92, vw = 1.15, vd = 0.7, vh = 0.42, vt = y0 + vh + 0.03;
+    F.box('concrete', vx, y0, vz, vw, vh, vd, { c: 0x8f97a3, bev: 0.01, tile: 0.5 }); F.box('concrete', vx, y0 + vh, vz, vw + 0.04, 0.03, vd + 0.04, { c: 0x4b5565 }); P.roller(F, 1.5, y0 + 0.05, vz - vd / 2, 0.26, 0.25, PI, 0xc4ccd6); F.box('hazard', 1.5, y0 + 0.3, vz - vd / 2 - 0.004, 0.3, 0.03, 0.008, { tile: 0.15 });
+    P.conveyor(F, [1.5, y0 + 0.08, vz - vd / 2 - 0.02], [1.5, y0 + 0.08, -1.49], 0.14, { floor: y0 }); F.box('glowMagenta', vx, y0 + 0.36, vz + vd / 2 + 0.004, vw - 0.04, 0.01, 0.006);
+    for (let i = 0; i < 3; i++) { const x = 1.02 + i * 0.35; F.cyl('steel', x, vt, vz, 0.075, 0.075, 0.17, 16, { c: 0xc2c9d3 }); for (const yy of [0.05, 0.12]) F.torus('gold', x, vt + yy, vz, 0.078, 0.01, 3, 16); F.cyl('glowMagenta', x, vt + 0.17, vz, 0.05, 0.05, 0.012, 12); F.cyl('steelDark', x, vt + 0.182, vz, 0.012, 0.012, 0.05, 6); } F.cylX('steelDark', 1.37, vt + 0.235, vz, 0.012, 0.75, 6); F.cyl('steel', 1.85, vt, -1.15, 0.03, 0.035, 0.22, 10, { c: 0xc2c9d3 }); F.cyl('steelDark', 1.85, vt + 0.22, -1.15, 0.04, 0.04, 0.02, 10); F.box('glowRed', 1.85, vt + 0.245, -1.15, 0.02, 0.02, 0.02);
+    F.at(1.954, y0 + 0.25, vz, PI / 2, f => { f.cyl('paint', 0, 0, 0, 0.07, 0.07, 0.004, 16, { c: 0xfacc15, rx: PI / 2 }); f.cyl('black', 0, 0, 0.002, 0.012, 0.012, 0.004, 8, { rx: PI / 2 }); for (let k = 0; k < 3; k++) { const a = k * TAU / 3 + PI / 2; f.beam('black', [Math.cos(a) * 0.012, Math.sin(a) * 0.012, 0.004], [Math.cos(a) * 0.048, Math.sin(a) * 0.048, 0.004], 0.026); } });
+    // extraction line ring -> vault
+    F.cylX('alu', 0.1, ya, -0.92, 0.03, 1.4, 12, { c: 0xc2c9d3 }); F.box('paint', -0.52, ya - 0.05, -0.92, 0.14, 0.1, 0.1, { c: 0x16a34a }); for (const x of [-0.25, 0.1, 0.45]) { F.box('paint', x, ya - 0.05, -0.92, 0.1, 0.1, 0.1, { c: 0xdc2626 }); F.box('steelDark', x, y0, -0.92, 0.04, ya - y0 - 0.055, 0.1, { c: 0x3a4350 }); } F.box('steelDark', 0.65, y0, -0.92, 0.04, ya - y0 - 0.03, 0.1, { c: 0x3a4350 });
+    // control bunker
+    const bx = -1.35, bz = 1.225, bw = 1.2, bd = 0.45, bfy = P.hall(F, bx, bz, bw, bd, 0.32, { c: 0xdfe5ec, trim: ac, mat: 'panel' }), bty = bfy + 0.03;
+    F.box('concrete', bx, bfy, bz, bw + 0.04, 0.03, bd + 0.04, { c: 0xb8bec8 }); F.at(bx, 0, bz, 0, f => P.parapet(f, bw + 0.03, bd + 0.03, bty, 0.04, 0xd4d9e0)); P.windows(F, -1.5, y0 + 0.1, bz + bd / 2, 0.8, 0.12, 4, 0); P.door(F, -0.95, y0, bz + bd / 2, 0.14, 0.18, 0, 0x2a3340); F.box('glowMagenta', bx, y0 + 0.27, bz + bd / 2 + 0.004, bw - 0.04, 0.01, 0.006); P.windows(F, -0.75, y0 + 0.1, bz, 0.3, 0.12, 2, PI / 2); P.windows(F, -1.95, y0 + 0.1, bz, 0.3, 0.12, 2, -PI / 2);
+    P.mast(F, -1.85, 1.1, 0.25, 0, bty); P.hvac(F, -1.55, bty, 1.3, 0.26, 0.14, 0.08, 0); F.cyl('steelDark', -1.0, bty, 1.2, 0.012, 0.012, 0.08, 6); F.cyl('paint', -1.0, bty + 0.08, 1.2, 0.1, 0.02, 0.04, 18, { c: 0xf2f4f8 }); F.sphere('glowCyan', -1.0, bty + 0.13, 1.2, 0.012, 6, 4);
+    F.cyl('steelDark', -1.2, bty, 1.3, 0.02, 0.02, 0.1, 8); F.anim('beacon', [-1.2, bty + 0.11, 1.3], 'spin', S => { S.box('glowRed', 0.035, 0, 0, 0.03, 0.025, 0.02); S.box('glowRed', -0.035, 0, 0, 0.03, 0.025, 0.02); }, { axis: 'y', speed: 5 });
+    // pulsed-power capacitor bank
+    const px = -0.08, pz = 1.25; F.box('steelDark', px, y0, pz, 1.0, 0.03, 0.34, { c: 0x3a4350 }); for (let r = 0; r < 2; r++) { for (let i = 0; i < 7; i++) { const x = px - 0.42 + i * 0.14, z = pz - 0.075 + r * 0.15; F.cyl('paint', x, y0 + 0.03, z, 0.038, 0.038, 0.13, 8, { c: 0x2563eb }); F.box('steel', x, y0 + 0.16, z, 0.034, 0.012, 0.034, { c: 0xc2c9d3 }); } F.box('copper', px, y0 + 0.178, pz - 0.075 + r * 0.15, 0.98, 0.01, 0.012); }
+    // cryo dewars, cooling tower, transformers
+    for (let i = 0; i < 3; i++) { const x = -1.72 + i * 0.27, z = -1.34; F.cyl('steelDark', x, y0, z, 0.1, 0.1, 0.05, 12, { c: 0x4b5565 }); F.cyl('paint', x, y0 + 0.05, z, 0.085, 0.085, 0.3, 16, { c: 0xe8eef5 }); F.sphere('paint', x, y0 + 0.35, z, 0.085, 14, 8, { dome: true, sy: 0.5, c: 0xe8eef5 }); F.torus('steel', x, y0 + 0.2, z, 0.087, 0.007, 3, 16); F.torus('glowCyan', x, y0 + 0.28, z, 0.087, 0.005, 3, 16); F.cyl('steel', x, y0 + 0.39, z, 0.012, 0.012, 0.05, 6); F.torus('paint', x, y0 + 0.43, z, 0.025, 0.005, 3, 8, { c: 0xdc2626 }); F.pipe('steel', [[x + 0.085, y0 + 0.12, z], [x + 0.13, y0 + 0.12, z], [x + 0.13, y0 + 0.02, z]], 0.01); }
+    P.coolingTower(F, -0.62, y0, -1.31, 0.16, 0.1, 0.4, { c: 0xc7cbd2, seg: q >= 2 ? 20 : 12 }); F.emitter(-0.62, y0 + 0.42, -1.31, 0.08, true); P.transformer(F, 0.5, y0, -1.3, 0); for (let i = 0; i < 3; i++) { F.box('paint', -0.2 + i * 0.12, y0, -1.3, 0.1, 0.2, 0.16, { c: 0x9aa1ab }); F.box('glowMagenta', -0.2 + i * 0.12, y0 + 0.14, -1.3 + 0.082, 0.06, 0.014, 0.003); F.box('steelDark', -0.2 + i * 0.12, y0 + 0.2, -1.3, 0.11, 0.012, 0.17, { c: 0x3a4350 }); }
+    // hydrogen spheres, supplies, forklift
+    for (const [x, z] of [[0.92, 1.12], [1.22, 1.16]]) { F.sphere('paint', x, y0 + 0.24, z, 0.14, 14, 10, { c: 0xe8eef5 }); F.torus('steel', x, y0 + 0.24, z, 0.141, 0.006, 3, 24); for (let k = 0; k < 4; k++) { const a = k * PI / 2 + PI / 4; F.cyl('steelDark', x + Math.cos(a) * 0.09, y0, z + Math.sin(a) * 0.09, 0.011, 0.011, 0.16, 6); } F.cyl('steel', x, y0 + 0.378, z, 0.012, 0.012, 0.03, 6); }
+    F.pipe('steel', [[0.92, y0 + 0.4, 1.12], [0.92, y0 + 0.46, 1.12], [1.05, y0 + 0.46, 0.7], [1.05, y0 + 0.4, fz + 0.01]], 0.01);
+    for (const z of [0.8, 1.0]) { P.pallet(F, 1.8, y0, z, 0.22, 0.2); P.crate(F, 1.8, y0 + 0.032, z, 0.12, 0.3, z > 0.9 ? 0x6b7280 : 0x818cf8); } P.forklift(F, 1.78, y0, 1.32, 0, 0xf59e0b);
+    lamppost(F, 0.62, y0, 1.32, 0.3); lamppost(F, -0.67, y0, 1.3, 0.3); F.light(0.62, y0 + 0.32, 1.32, [1, 0.9, 0.6], 0.5);
+  });
+  // ------------------------------------------------------------------ dyson assembler: sun-in-a-cage landmark (amber sun, three spinning armillary swarm rings, lattice pylons + halo), solar-roofed assembly hall, panel factory, inclined electromagnetic mass driver with payload sled, swarm-control dome
+  reg('dyson_assembler', 4, 4, F => {
+    const y0 = P.slab(F, 4, 4, { drains: [[-1.7, 1.75], [1.75, -1.7]] }), q = F.q, ac = 0xf59e0b, cx = 0, cz = 0.1, PR = 0.95, ys = y0 + 1.05;
+    // ---- sun plaza with sunburst inlay, pedestal, sun
+    F.cyl('concrete', cx, y0, cz, PR, PR, 0.05, q >= 2 ? 56 : 32, { c: 0xb9bec7 }); F.cyl('asphalt', cx, y0 + 0.05, cz, PR - 0.08, PR - 0.08, 0.004, q >= 2 ? 48 : 28, { c: 0x2a2f3a }); F.torus('glowAmber', cx, y0 + 0.058, cz, PR - 0.1, 0.007, 3, 48);
+    for (let k = 0; k < 12; k++) { const a = k * TAU / 12 + 0.1, b = a + TAU / 24; F.box('solar', cx + Math.cos(a) * 0.58, y0 + 0.054, cz + Math.sin(a) * 0.58, 0.34, 0.006, 0.11, { ry: -a }); F.box('gold', cx + Math.cos(b) * 0.58, y0 + 0.054, cz + Math.sin(b) * 0.58, 0.3, 0.005, 0.015, { ry: -b }); }
+    F.cyl('concrete', cx, y0 + 0.05, cz, 0.3, 0.36, 0.12, 28, { c: 0x7a828e }); F.torus('gold', cx, y0 + 0.17, cz, 0.3, 0.012, 3, 28); F.cyl('steelDark', cx, y0 + 0.17, cz, 0.1, 0.16, 0.2, 18, { c: 0x2a3340 }); F.cyl('steel', cx, y0 + 0.37, cz, 0.05, 0.08, 0.3, 14, { c: 0xc2c9d3 }); F.cyl('gold', cx, y0 + 0.67, cz, 0.12, 0.06, 0.07, 18); F.torus('glowAmber', cx, y0 + 0.74, cz, 0.12, 0.008, 3, 24);
+    F.anim('sun', [cx, ys, cz], 'spin', S => { S.sphere('glowSun', 0, 0, 0, 0.26, q >= 2 ? 20 : 12, q >= 2 ? 14 : 8); for (let k = 0; k < 6; k++) { const lon = k * TAU / 6 + 0.3; S.at(Math.cos(lon) * 0.25, Math.sin(k * 2.1) * 0.12, Math.sin(lon) * 0.25, -lon, f => f.torus('glowRed', 0, 0, 0, 0.07, 0.01, 3, 10, { arc: PI, ry: PI / 2 })); } }, { axis: 'y', speed: 0.18 });
+    F.light(cx, ys, cz, [1, 0.72, 0.28], 2.2);
+    // ---- three armillary swarm rings carrying solar tiles and satellites
+    const sat = (S, a, R) => S.at(Math.cos(a) * R, 0, Math.sin(a) * R, -a - PI / 2, f => { f.box('alu', 0, -0.022, 0, 0.05, 0.044, 0.05, { c: 0xdfe5ec }); f.box('gold', 0, -0.002, -0.075, 0.1, 0.004, 0.06); f.box('gold', 0, -0.002, 0.075, 0.1, 0.004, 0.06); f.box('glowAmber', 0, 0.022, 0, 0.014, 0.014, 0.014); f.cyl('steel', 0, 0.022, 0.0, 0.006, 0.006, 0.03, 5); });
+    const arm = (key, R, rot, sp) => F.anim(key, [cx, ys, cz], 'spin', S => { S.torus('gold', 0, 0, 0, R, 0.011, 4, 44); const n = Math.round(TAU * R / (q >= 2 ? 0.125 : 0.2)); for (let i = 0; i < n; i++) { const a = (i + 0.5) * TAU / n; if (Math.abs(((a / PI) % 1) - 0) < 0.09 || Math.abs(((a / PI) % 1) - 1) < 0.09) continue; S.box('solar', Math.cos(a) * R, -0.004, Math.sin(a) * R, q >= 2 ? 0.1 : 0.16, 0.008, 0.06, { ry: -a - PI / 2 }); } sat(S, 0, R); sat(S, PI, R); }, { axis: 'y', speed: sp, rot });
+    arm('orbA', 0.44, [0, 0, 0], 0.8); arm('orbB', 0.57, [0, 0, 0.9], -0.6); arm('orbC', 0.7, [-0.9, 0, 0.35], 0.45);
+    // ---- lattice pylons + collector halo
+    for (let k = 0; k < 4; k++) { const a = k * PI / 2 + PI / 4, x = cx + Math.cos(a) * 0.9, z = cz + Math.sin(a) * 0.9; P.lattice(F, x, y0 + 0.05, z, 0.12, 0.12, 0.04, 0.04, 1.27, { c: 0xc2c9d3, levels: 2, t: 0.018 }); F.sphere('glowAmber', x, y0 + 1.34, z, 0.028, 8, 6); }
+    F.torus('gold', cx, y0 + 1.31, cz, 0.9, 0.013, 4, 64);
+    // ---- back assembly hall (OUT port) with solar roof
+    const hx = -0.5, hz = -1.4, hw = 2.9, hd = 0.8, fy = P.hall(F, hx, hz, hw, hd, 0.55, { c: 0x2f343f, trim: ac, mat: 'panel' }), ty = fy + 0.03, fzf = hz + hd / 2;
+    F.box('concrete', hx, fy, hz, hw + 0.04, 0.03, hd + 0.04, { c: 0x4b5565 }); F.at(hx, 0, hz, 0, f => P.parapet(f, hw + 0.03, hd + 0.03, ty, 0.05, 0x6a7482)); F.box('glowAmber', hx, y0 + 0.5, fzf + 0.004, hw - 0.04, 0.012, 0.006);
+    P.windows(F, -1.55, y0 + 0.2, fzf, 0.7, 0.16, 3, 0); P.windows(F, 0.5, y0 + 0.2, fzf, 0.6, 0.16, 3, 0); P.roller(F, -1.0, y0 + 0.05, fzf, 0.3, 0.3, 0, 0xc4ccd6); P.roller(F, -0.35, y0 + 0.05, fzf, 0.3, 0.3, 0, 0xc4ccd6); P.windows(F, -1.95, y0 + 0.2, hz, 0.5, 0.16, 3, -PI / 2); P.windows(F, 0.95, y0 + 0.2, hz, 0.5, 0.16, 3, PI / 2);
+    P.roller(F, -0.5, y0 + 0.05, hz - hd / 2, 0.3, 0.3, PI, 0xc4ccd6); P.conveyor(F, [-0.5, y0 + 0.08, hz - hd / 2 - 0.02], [-0.5, y0 + 0.08, -1.99], 0.14, { floor: y0 });
+    F.at(-0.03, y0 + 0.34, fzf + 0.002, 0, f => { f.cyl('glowAmber', 0, 0, 0, 0.055, 0.055, 0.006, 16, { rx: PI / 2 }); for (let k = 0; k < 12; k++) { const a = k * TAU / 12; f.box('glowAmber', Math.cos(a) * 0.085, Math.sin(a) * 0.085 - 0.008, 0.002, 0.03, 0.016, 0.006, { rz: a }); } });
+    for (let r = 0; r < 3; r++) for (let c = 0; c < 5; c++) W.solar(F, -1.7 + c * 0.475, ty, -1.2 - r * 0.2, 0.44, 0.16, -0.35); P.hvac(F, 0.72, ty, -1.3, 0.3, 0.16, 0.09, 0); P.hvac(F, 0.72, ty, -1.6, 0.3, 0.16, 0.09, 0);
+    // ---- panel factory (left) with skylight, stacks, conveyor feeding the hall
+    const lx = -1.625, lz = -0.1, lfy = P.hall(F, lx, lz, 0.65, 1.5, 0.5, { c: 0x39404c, trim: ac, mat: 'panel' }), lty = lfy + 0.03;
+    F.box('concrete', lx, lfy, lz, 0.69, 0.03, 1.54, { c: 0x4b5565 }); F.at(lx, 0, lz, 0, f => P.parapet(f, 0.68, 1.53, lty, 0.05, 0x6a7482)); F.box('steelDark', lx, lty, lz, 0.4, 0.012, 1.24, { c: 0x2a3340 }); F.box('glass', lx, lty + 0.012, lz, 0.34, 0.05, 1.18); for (let i = 0; i < 6; i++) F.box('steelDark', lx, lty + 0.012, lz - 0.55 + i * 0.22, 0.36, 0.055, 0.012, { c: 0x2a3340 });
+    for (const z of [0.4, 0.55]) { F.cyl('steel', -1.8, lty, z, 0.035, 0.04, 0.2, 10, { c: 0xc2c9d3 }); F.cyl('steelDark', -1.8, lty + 0.2, z, 0.045, 0.045, 0.015, 10); F.box('glowRed', -1.8, lty + 0.22, z, 0.02, 0.02, 0.02); }
+    P.windows(F, -1.95, y0 + 0.16, lz, 0.9, 0.14, 4, -PI / 2); P.windows(F, lx, y0 + 0.16, 0.65, 0.4, 0.14, 2, 0); P.roller(F, -1.3, y0 + 0.05, -0.5, 0.26, 0.25, PI / 2, 0xc4ccd6); P.roller(F, -1.3, y0 + 0.05, 0.2, 0.26, 0.25, PI / 2, 0xc4ccd6); F.box('glowAmber', lx, y0 + 0.44, 0.653, 0.6, 0.012, 0.006);
+    P.conveyor(F, [-1.28, y0 + 0.08, -0.5], [-1.0, y0 + 0.08, -0.5], 0.13, { floor: y0 }); P.conveyor(F, [-1.0, y0 + 0.08, -0.5], [-1.0, y0 + 0.08, fzf + 0.03], 0.13, { floor: y0 }); F.anim('pnl', [-1.14, y0 + 0.11, -0.5], 'slide', S => { S.box('solar', 0, 0, 0, 0.12, 0.012, 0.09); S.box('gold', 0, -0.006, 0, 0.13, 0.006, 0.1); }, { axis: 'x', amp: 0.1, speed: 1.2 });
+    for (const z of [0.2, 0.5]) { P.pallet(F, -1.12, y0, z, 0.2, 0.22); for (let i = 0; i < 3; i++) F.box('solar', -1.12, y0 + 0.034 + i * 0.024, z, 0.17, 0.02, 0.19, { c: 0x2d5fa8 }); }
+    // ---- receiving hall (IN port), truck bay
+    const rx = -1.05, rz = 1.4, rfy = P.hall(F, rx, rz, 1.7, 0.4, 0.4, { c: 0x39404c, trim: ac, mat: 'panel' }), rty = rfy + 0.03;
+    F.box('concrete', rx, rfy, rz, 1.74, 0.03, 0.44, { c: 0x4b5565 }); F.at(rx, 0, rz, 0, f => P.parapet(f, 1.73, 0.43, rty, 0.04, 0x6a7482)); P.windows(F, -1.5, y0 + 0.14, rz + 0.2, 0.8, 0.12, 4, 0); P.roller(F, -0.5, y0 + 0.05, rz + 0.2, 0.3, 0.28, 0, 0xc4ccd6); F.box('glowAmber', rx, y0 + 0.36, rz + 0.203, 1.66, 0.01, 0.006);
+    P.conveyor(F, [-0.5, y0 + 0.08, 1.99], [-0.5, y0 + 0.08, rz + 0.23], 0.14, { floor: y0 }); P.hvac(F, -1.4, rty, 1.4, 0.3, 0.16, 0.08, 0); P.hvac(F, -0.8, rty, 1.4, 0.3, 0.16, 0.08, 0); P.truck(F, -1.45, y0, 0.93, PI / 2, 0xf59e0b);
+    // ---- swarm-control dome, radar, uplink dishes
+    const dx = 0.55, dz = 1.62; F.cyl('paint', dx, y0, dz, 0.3, 0.3, 0.2, 28, { c: 0xe9eef3 }); F.torus('glowAmber', dx, y0 + 0.12, dz, 0.302, 0.008, 3, 28); F.sphere('paint', dx, y0 + 0.2, dz, 0.3, 24, 10, { dome: true, c: 0xf8f8f8 }); F.torus('steel', dx, y0 + 0.2, dz, 0.3, 0.012, 3, 28, { c: 0xc2c9d3 }); F.box('black', dx, y0 + 0.26, dz + 0.27, 0.12, 0.05, 0.03); P.door(F, dx - 0.12, y0, dz + 0.295, 0.1, 0.14, 0, 0x2a3340);
+    F.cyl('steelDark', dx, y0 + 0.5, dz, 0.012, 0.012, 0.06, 6); F.anim('radar', [dx, y0 + 0.56, dz], 'spin', S => { S.box('steel', 0, 0, 0, 0.3, 0.025, 0.035, { c: 0xc2c9d3 }); S.box('steelDark', 0, -0.02, 0, 0.04, 0.04, 0.04); S.box('glowAmber', 0.15, 0.0, 0, 0.012, 0.012, 0.012); }, { axis: 'y', speed: 1.6 });
+    for (const [x, z, ph] of [[0.95, 1.4, 0], [0.95, 1.82, 2]]) { F.cyl('steelDark', x, y0, z, 0.012, 0.018, 0.3, 6); F.anim('dish', [x, y0 + 0.3, z], 'osc', S => { S.cyl('paint', 0, 0, 0, 0.1, 0.02, 0.05, 18, { c: 0xf2f4f8 }); S.cyl('steelDark', 0, 0.05, 0, 0.008, 0.008, 0.06, 6); S.sphere('glowAmber', 0, 0.115, 0, 0.012, 6, 4); }, { axis: 'y', amp: 0.8, speed: 0.4, phase: ph }); }
+    // ---- electromagnetic mass driver: inclined coil gun with portal coils and a payload sled
+    const mx = 1.5, mz0 = 1.6, th = 0.24, L = 3.05, my0 = y0 + 0.16;
+    for (let i = 0; i < 6; i++) { const s = 0.35 + i * 0.55, zi = mz0 - s * Math.cos(th), hi = 0.16 + s * Math.sin(th) - 0.13; for (const sx of [-1, 1]) F.box('steelDark', mx + sx * 0.15, y0, zi, 0.04, hi, 0.04, { c: 0x3a4350 }); F.box('steel', mx, y0 + hi, zi, 0.36, 0.03, 0.06, { c: 0xc2c9d3 }); F.beam('steelDark', [mx - 0.15, y0 + 0.02, zi], [mx + 0.15, y0 + hi, zi], 0.012); }
+    F.at(mx, my0, mz0, PI, f => {
+      f.rotX(-th); f.box('steelDark', 0, -0.13, L / 2, 0.34, 0.03, L, { c: 0x2a3340 }); for (const sx of [-1, 1]) f.box('steel', sx * 0.055, -0.1, L / 2, 0.03, 0.025, L, { c: 0xc2c9d3 });
+      const nC = q >= 2 ? 18 : 12; for (let i = 0; i < nC; i++) { const z = 0.25 + i * (L - 0.5) / (nC - 1); f.torus(i % 2 ? 'gold' : 'copper', 0, 0.04, z, 0.135, 0.016, 3, 14, { rx: PI / 2 }); if (i % 3 === 0) f.box('steelDark', 0, -0.1, z, 0.3, 0.012, 0.05); }
+      f.torus('gold', 0, 0.04, L, 0.19, 0.02, 4, 24, { rx: PI / 2 }); f.torus('glowAmber', 0, 0.04, L, 0.19, 0.008, 3, 24, { rx: PI / 2 }); for (const a of [PI / 4, 3 * PI / 4, 5 * PI / 4, 7 * PI / 4]) f.beam('steelDark', [Math.cos(a) * 0.19, 0.04 + Math.sin(a) * 0.19, L], [Math.cos(a) * 0.19, 0.04 + Math.sin(a) * 0.19, L - 0.16], 0.014);
+      f.anim('sled', [0, 0, L * 0.5], 'slide', S => { S.box('steelDark', 0, -0.075, 0, 0.12, 0.025, 0.26, { c: 0x2a3340 }); S.box('alu', 0, -0.05, 0, 0.1, 0.07, 0.2, { c: 0xdfe5ec }); S.box('solar', 0, 0.02, 0, 0.09, 0.006, 0.17); S.cone('glowAmber', 0, -0.05, -0.1, 0.035, 0.05, 8, { rx: -PI / 2 }); S.box('glowAmber', 0, -0.02, 0.1, 0.05, 0.02, 0.006); }, { axis: 'z', amp: L * 0.42, speed: 0.7, rot: [-th, 0, 0] });
+    });
+    const lbx = 1.5, lbz = 1.79, lfy2 = P.hall(F, lbx, lbz, 0.6, 0.3, 0.3, { c: 0x2f343f, trim: ac, mat: 'panel' }); F.box('concrete', lbx, lfy2, lbz, 0.64, 0.03, 0.34, { c: 0x4b5565 }); P.windows(F, lbx, y0 + 0.12, lbz + 0.15, 0.4, 0.1, 3, 0); F.cylX('steel', lbx, lfy2 + 0.09, lbz, 0.06, 0.4, 14, { c: 0xe8eef5 }); for (const dx2 of [-0.12, 0.12]) F.box('steelDark', lbx + dx2, lfy2 + 0.03, lbz, 0.03, 0.04, 0.1);
+    P.transformer(F, 1.5, y0, -1.8, 0); P.cableTray(F, 1.22, y0 + 0.012, -1.8, 0.95, -1.8); P.cableTray(F, 1.5, y0 + 0.012, -1.62, 1.5, -1.45);
+    lamppost(F, 0.0, y0, 1.45, 0.3); lamppost(F, -0.95, y0, 1.8, 0.3); F.light(0.0, y0 + 0.32, 1.45, [1, 0.9, 0.6], 0.5);
+  });
+})(typeof window !== 'undefined' ? window : globalThis);
+
 /* ---- three_adapter.js ---- */
 /* IE3D: three.js (r128) adapter for IEModels / IEForge output.
    make(type, THREE, {preset, renderer}) -> { group, anim:{tick} } | null.  Geometry is cached per (type, quality) and shared between buildings;
@@ -2242,8 +2813,9 @@
   function getTex(T, name, q, aniso) {
     const k = name + ':' + q; if (TEX.has(k)) return TEX.get(k);
     let o = null; const d = root.IETex.get(name, q);
-    if (d) { const mk = cv => { const t = new T.CanvasTexture(cv); t.wrapS = T.RepeatWrapping; t.wrapT = T.RepeatWrapping; t.anisotropy = aniso || 4; t.needsUpdate = true; return t; };
-      o = { map: mk(d.albedo), normal: d.normal ? mk(d.normal) : null, emissive: d.emissive ? mk(d.emissive) : null }; }
+    if (d) { const mk = (cv, srgb) => { const t = new T.CanvasTexture(cv); t.wrapS = T.RepeatWrapping; t.wrapT = T.RepeatWrapping; t.anisotropy = aniso || 4; if (srgb && T.sRGBEncoding !== undefined) t.encoding = T.sRGBEncoding; t.needsUpdate = true; return t; };
+      // colour maps are sRGB like the game's own textures (renderer.outputEncoding = sRGB); the normal map stays linear
+      o = { map: mk(d.albedo, true), normal: d.normal ? mk(d.normal, false) : null, emissive: d.emissive ? mk(d.emissive, true) : null }; }
     TEX.set(k, o); return o;
   }
   function mkMat(T, key, q, aniso) {
@@ -3242,6 +3814,7 @@
 
         function applyPreset(preset) {
           currentPreset = preset; document.documentElement.classList.toggle('ie-lite', preset === 'lite' || preset === 'eco');
+          try { const q3 = window.IE3D ? window.IE3D.quality(preset) : 0; if (window.__IEq3 !== undefined && window.__IEq3 !== q3) { buildingMeshes.forEach(v => buildingsGroup.remove(v.group)); buildingMeshes.clear(); } window.__IEq3 = q3; } catch (e3) { console.error('[IE3D] preset', e3); }
           const labelEl = document.getElementById('hudPresetLabel'); if (labelEl) labelEl.textContent = { insane: 'Insane', lite: 'Chromebook', auto: 'Auto', eco: 'Eco' }[preset] || preset;
           document.querySelectorAll('.preset-btn').forEach(btn => { const act = btn.dataset.preset === preset; btn.classList.toggle('border-sky-400/60', act); btn.classList.toggle('bg-sky-500/20', act); });
           if (!renderer) return; const baseDpr = window.devicePixelRatio || 1;
@@ -3548,7 +4121,7 @@
             if (fpsSmooth < (currentPreset === 'lite' ? 36 : 46) && dynamicScale > (currentPreset === 'lite' ? 0.55 : 0.75)) { dynamicScale = Math.max(currentPreset === 'lite' ? 0.55 : 0.75, dynamicScale - 0.05); renderer.setPixelRatio(dynamicScale); } 
             else if (fpsSmooth > (currentPreset === 'lite' ? 50 : 57) && dynamicScale < (currentPreset === 'lite' ? 1.0 : 1.2)) { dynamicScale = Math.min(currentPreset === 'lite' ? 1.0 : 1.2, dynamicScale + 0.02); renderer.setPixelRatio(dynamicScale); } 
           } 
-          if (currentPreset === 'insane' && cubeCamera) {
+          if (currentPreset === 'insane' && cubeCamera && ((window.__IEcn = ((window.__IEcn | 0) + 1) % 4) === 0)) {
             cubeCamera.position.set(camState.target.x, 8, camState.target.z);
             if (waterMesh) waterMesh.visible = false;
             cubeCamera.update(renderer, scene);
