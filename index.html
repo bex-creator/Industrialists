@@ -3299,7 +3299,7 @@
         aluminum_smelter: { id: 'aluminum_smelter', name: 'Aluminum Smelter', category: 'processing', icon: '🪙', cost: 1300, power: 6.5, pollution: 2.1, workers: 12, w: 2, d: 2, unlock: 'light_metals', hasInPort: true, hasOutPort: true, recipes: [ { in: { bauxite: 2 }, out: { aluminum: 1 }, time: 2.8 } ] },
         wafer_fab: { id: 'wafer_fab', name: 'Wafer Foundry', category: 'processing', icon: '💿', cost: 1450, power: 5.8, pollution: 1.5, workers: 11, w: 2, d: 2, unlock: 'basic_metallurgy', hasInPort: true, hasOutPort: true, recipes: [ { in: { quartz: 2, coal: 1 }, out: { silicon_wafer: 1 }, time: 3.0 } ] },
         refinery: { id: 'refinery', name: 'Cracking Refinery', category: 'processing', icon: '⚗️', cost: 1650, power: 6.0, pollution: 3.1, workers: 14, w: 3, d: 2, unlock: 'fluid_engineering', hasInPort: true, hasOutPort: true, recipes: [ { in: { crude_oil: 2 }, out: { fuel: 1, plastic: 1 }, time: 3.0 } ] },
-        chemical_plant: { id: 'chemical_plant', name: 'Chemical Complex', category: 'processing', icon: '🧫', cost: 1950, power: 6.8, pollution: 2.4, workers: 13, w: 3, d: 2, unlock: 'fluid_engineering', hasInPort: true, hasOutPort: true, recipes: [ { in: { plastic: 1, sulfur: 1, water: 1 }, out: { industrial_acid: 1 }, time: 2.9 }, { in: { lithium: 2, aluminum: 1 }, out: { battery_cell: 1 }, time: 3.4 } ] },
+        chemical_plant: { id: 'chemical_plant', name: 'Chemical Complex', category: 'processing', icon: '🧫', cost: 1950, power: 6.8, pollution: 2.4, workers: 13, w: 3, d: 2, unlock: 'fluid_engineering', hasInPort: true, hasOutPort: true, recipes: [ { in: { plastic: 1, sulfur: 1, water: 1 }, out: { industrial_acid: 1 }, time: 2.9 }, { in: { lithium: 2, aluminum: 1 }, out: { battery_cell: 1 }, time: 3.4 }, { in: { natural_gas: 1, water: 1 }, out: { hydrogen: 1 }, time: 3.0 } ] },
         cement_kiln: { id: 'cement_kiln', name: 'Rotary Cement Kiln', category: 'processing', icon: '🧱', cost: 950, power: 4.5, pollution: 4.5, workers: 10, w: 2, d: 2, unlock: 'basic_metallurgy', hasInPort: true, hasOutPort: true, recipes: [ { in: { limestone: 2, coal: 1 }, out: { cement: 2 }, time: 2.5 } ] },
         glass_furnace: { id: 'glass_furnace', name: 'Float Glass Furnace', category: 'processing', icon: '🪟', cost: 1100, power: 5.0, pollution: 2.0, workers: 12, w: 2, d: 2, unlock: 'basic_metallurgy', hasInPort: true, hasOutPort: true, recipes: [ { in: { quartz: 2, natural_gas: 1 }, out: { glass: 2 }, time: 2.8 } ] },
         ammonia_plant: { id: 'ammonia_plant', name: 'Haber-Bosch Ammonia', category: 'processing', icon: '💨', cost: 1800, power: 7.5, pollution: 1.0, workers: 14, w: 3, d: 2, unlock: 'fluid_engineering', hasInPort: true, hasOutPort: true, recipes: [ { in: { natural_gas: 2, hydrogen: 1 }, out: { ammonia: 2 }, time: 3.0 } ] },
@@ -3467,6 +3467,10 @@
       function getFrontOutputTiles(b) { const def = BUILDINGS[b.type]; const { w, d } = getFootprintSize(def, b.dir || 0); const dir = b.dir || 0; const out = []; if (dir === 0) { if (b.z - 1 >= 0) for (let dx = 0; dx < w; dx++) out.push({ x: b.x + dx, z: b.z - 1 }); } else if (dir === 1) { if (b.x + w < GRID_SIZE) for (let dz = 0; dz < d; dz++) out.push({ x: b.x + w, z: b.z + dz }); } else if (dir === 2) { if (b.z + d < GRID_SIZE) for (let dx = 0; dx < w; dx++) out.push({ x: b.x + dx, z: b.z + d }); } else if (dir === 3) { if (b.x - 1 >= 0) for (let dz = 0; dz < d; dz++) out.push({ x: b.x - 1, z: b.z + dz }); } return out; }
       function getPerimeterTiles(b) { const def = BUILDINGS[b.type]; const { w, d } = getFootprintSize(def, b.dir || 0); const out = []; for (let dx = 0; dx < w; dx++) { if (b.z - 1 >= 0) out.push({ x: b.x + dx, z: b.z - 1 }); if (b.z + d < GRID_SIZE) out.push({ x: b.x + dx, z: b.z + d }); } for (let dz = 0; dz < d; dz++) { if (b.x - 1 >= 0) out.push({ x: b.x - 1, z: b.z + dz }); if (b.x + w < GRID_SIZE) out.push({ x: b.x + w, z: b.z + dz }); } return out; }
       function totalInvCount(inv) { let sum = 0; for (const k of Object.keys(inv || {})) sum += inv[k] || 0; return sum; }
+      function inputNeed(d, res) { let n = 0; if (d && d.recipes) for (const r of d.recipes) n = Math.max(n, r.in[res] || 0); return n; }
+      function nonInputCount(b, d) { let n = 0; for (const k of Object.keys(b.inv || {})) if (!inputNeed(d, k)) n += b.inv[k] || 0; return n; }
+      function roomFor(tb, res) { const td = BUILDINGS[tb.type] || {}; if (td.recipes && !td.storageCap && inputNeed(td, res) > 0) return Math.max(0, 20 - ((tb.inv || {})[res] || 0)); return Math.max(0, (td.storageCap || 40) - totalInvCount(tb.inv)); }
+      function tileHasRoom(s, skip, nx, nz) { let n = 0; for (let j = 0; j < s.cargoItems.length; j++) { const o = s.cargoItems[j]; if (j !== skip && o.tileX === nx && o.tileZ === nz) { if (o.progress < 0.5) return false; n++; } } return n < 3; }
       function isBuildingUnlocked(s, def) { if (!def) return false; if (s.sandbox || !def.unlock) return true; return !!s.unlockedTech[def.unlock]; }
       
       function getMoraleMultipliers(s) {
@@ -3628,7 +3632,7 @@
           if (d.output && eff > 0) {
             let yM = 1.0;
             if (d.deposit) {
-              const { w, dp } = getFootprintSize(d, b.dir || 0); let mats = 0;
+              const { w, d: dp } = getFootprintSize(d, b.dir || 0); let mats = 0;
               for (let dz = 0; dz < (dp || d.d || 1); dz++) { for (let dx = 0; dx < w; dx++) { if (s.tiles[b.z + dz]?.[b.x + dx]?.deposit === d.deposit) mats++; } }
               yM = mats > 0 ? (0.75 + mats * 0.22) : 0.2;
             } else if (b.type === 'water_pump') { yM = s.tiles[b.z]?.[b.x]?.beach ? 1.35 : 0.95; }
@@ -3645,7 +3649,7 @@
               const idx = (b.activeRecipeIdx + i) % d.recipes.length, rec = d.recipes[idx];
               if (Object.entries(rec.in).every(([r, q]) => (b.inv[r] || 0) >= q)) { cIdx = idx; break; }
             }
-            if (cIdx !== -1 && totalInvCount(b.inv) < (d.storageCap || 36)) {
+            if (cIdx !== -1 && nonInputCount(b, d) < (d.storageCap || 36)) {
               b.activeRecipeIdx = cIdx; const rec = d.recipes[cIdx];
               let rM = 1.0; if (s.unlockedTech.basic_metallurgy && ['smelter', 'steel_foundry', 'aluminum_smelter', 'wafer_fab', 'glass_furnace', 'cement_kiln'].includes(b.type)) rM *= 1.25;
               if (s.unlockedTech.industrial_automation) rM *= 1.3; if (s.unlockedTech.ai_grid_orchestration) rM *= 1.2;
@@ -3674,7 +3678,7 @@
             const fOut = getFrontOutputTiles(b), aPer = getPerimeterTiles(b); const pts = [...fOut, ...aPer.filter(p => !fOut.some(f => f.x === p.x && f.z === p.z))];
             for (const pt of pts) {
               const lt = beltMap.get(`${pt.x},${pt.z}`); if (!lt) continue; const iP = lt.type.includes('pipe');
-              if (s.cargoItems.some(ci => Math.hypot(ci.x - pt.x, ci.z - pt.z) < 0.55)) continue;
+              if (s.cargoItems.some(ci => Math.hypot(ci.x - pt.x, ci.z - pt.z) < 0.55) || !tileHasRoom(s, -1, pt.x, pt.z)) continue;
               for (const res of Object.keys(b.inv)) {
                 if ((b.inv[res] || 0) <= 0 || (!!RESOURCES[res]?.fluid !== iP) || (d.recipes && d.recipes.some(r => r.in[res]))) continue;
                 b.inv[res] -= 1; s.cargoItems.push({ type: res, x: pt.x, z: pt.z, tileX: pt.x, tileZ: pt.z, progress: 0, elevated: lt.type.startsWith('elevated_') }); break;
@@ -3691,12 +3695,12 @@
           if (it.progress >= 1) {
             const nx = it.tileX + dV.dx, nz = it.tileZ + dV.dz, nt = beltMap.get(`${nx},${nz}`);
             if (nt) {
-              if (!s.cargoItems.some((o, id) => id !== i && o.tileX === nx && o.tileZ === nz && o.progress < 0.5)) {
+              if (tileHasRoom(s, i, nx, nz)) {
                 it.tileX = nx; it.tileZ = nz; it.x = nx; it.z = nz; it.progress = 0; it.elevated = nt.type.startsWith('elevated_');
               } else { it.progress = 1; }
             } else {
               const tb = getBuildingAt(s, nx, nz);
-              if (tb && totalInvCount(tb.inv) < (BUILDINGS[tb.type]?.storageCap || 40)) { tb.inv[it.type] = (tb.inv[it.type] || 0) + 1; s.cargoItems.splice(i, 1); } else { it.progress = 1; }
+              if (tb && roomFor(tb, it.type) > 0) { tb.inv[it.type] = (tb.inv[it.type] || 0) + 1; s.cargoItems.splice(i, 1); } else { it.progress = 1; }
             }
           }
         }
@@ -3722,11 +3726,12 @@
                   for (const res of Object.keys(tb.inv)) {
                     if ((tb.inv[res] || 0) > 0 && !RESOURCES[res]?.fluid) { const t = Math.min(4, tb.inv[res]); tb.inv[res] -= t; tr.cargoType = res; tr.cargoQty = t; break; }
                   }
-                } else { tb.inv[tr.cargoType] = (tb.inv[tr.cargoType] || 0) + tr.cargoQty; tr.cargoType = null; tr.cargoQty = 0; }
+                } else { const n5 = BUILDINGS[tb.type]?.exportMult ? tr.cargoQty : Math.min(tr.cargoQty, roomFor(tb, tr.cargoType)); if (n5 > 0) { tb.inv[tr.cargoType] = (tb.inv[tr.cargoType] || 0) + n5; tr.cargoQty -= n5; }
+                  if (tr.cargoQty <= 0) { tr.cargoType = null; tr.cargoQty = 0; } }
               } tr.targetBuildingId = null;
             }
             const tgt = !tr.cargoType ? s.buildings.find(b => b.type !== 'export_terminal' && b.type !== 'cargo_airport' && Object.entries(b.inv).some(([r, q]) => q >= 2 && !RESOURCES[r]?.fluid))
-                                      : s.buildings.find(b => BUILDINGS[b.type]?.recipes?.some(r => r.in[tr.cargoType]) || BUILDINGS[b.type]?.exportMult);
+                                      : s.buildings.find(b => (BUILDINGS[b.type]?.recipes?.some(r => r.in[tr.cargoType]) && roomFor(b, tr.cargoType) > 0) || BUILDINGS[b.type]?.exportMult);
             if (tgt) { const path = findRoadPath(s, gx, gz, new Set(getPerimeterTiles(tgt).filter(pt => getBuildingAt(s, pt.x, pt.z)?.type === 'road').map(pt => `${pt.x},${pt.z}`))); if (path) { tr.path = path; tr.targetBuildingId = tgt.id; } }
           }
         }
@@ -3817,7 +3822,7 @@
           try { const q3 = window.IE3D ? window.IE3D.quality(preset) : 0; if (window.__IEq3 !== undefined && window.__IEq3 !== q3) { buildingMeshes.forEach(v => buildingsGroup.remove(v.group)); buildingMeshes.clear(); } window.__IEq3 = q3; } catch (e3) { console.error('[IE3D] preset', e3); }
           const labelEl = document.getElementById('hudPresetLabel'); if (labelEl) labelEl.textContent = { insane: 'Insane', lite: 'Chromebook', auto: 'Auto', eco: 'Eco' }[preset] || preset;
           document.querySelectorAll('.preset-btn').forEach(btn => { const act = btn.dataset.preset === preset; btn.classList.toggle('border-sky-400/60', act); btn.classList.toggle('bg-sky-500/20', act); });
-          if (!renderer) return; const baseDpr = window.devicePixelRatio || 1;
+          if (!renderer) return; const baseDpr = window.devicePixelRatio || 1; const shadow3 = renderer.shadowMap.enabled;
           if (preset === 'eco') { dynamicScale = 0.85; renderer.shadowMap.enabled = false; scene.environment = staticEnv; }
           else if (preset === 'lite') { dynamicScale = 1.0; renderer.shadowMap.enabled = true; if (sunLight.shadow.map) { sunLight.shadow.map.dispose(); sunLight.shadow.map = null; } sunLight.shadow.mapSize.set(2048, 2048); scene.environment = staticEnv; }
           else if (preset === 'auto') { dynamicScale = 1.0; renderer.shadowMap.enabled = false; scene.environment = staticEnv; }
@@ -3829,6 +3834,7 @@
             scene.environment = cubeRenderTarget ? cubeRenderTarget.texture : staticEnv; 
           }
           renderer.setPixelRatio(dynamicScale); const sc = document.getElementById('hudRenderScale'); if (sc) sc.textContent = `${dynamicScale.toFixed(2)}×`;
+          if (shadow3 !== renderer.shadowMap.enabled) scene.traverse(o3 => { const m3 = o3.material; if (m3) (Array.isArray(m3) ? m3 : [m3]).forEach(x3 => { x3.needsUpdate = true; }); });
         }
 
         function updateCameraTransform() {
@@ -4060,7 +4066,8 @@
           for (const b of s.buildings) {
             activeIds.add(b.id); let e = buildingMeshes.get(b.id);
             if (!e || e.dir !== (b.dir || 0)) {
-              if (e) buildingsGroup.remove(e.group); const built = buildBuildingMesh(b);
+              if (e) { buildingsGroup.remove(e.group); for (const [wk3, wv3] of wireMeshes) { const wp3 = wk3.split('_'); if (+wp3[0] === b.id || +wp3[1] === b.id) { wiresGroup.remove(wv3.mesh); wv3.mesh.geometry.dispose(); wv3.mat.dispose(); wireMeshes.delete(wk3); } } }
+              const built = buildBuildingMesh(b);
               const def = BUILDINGS[b.type], { w, d } = getFootprintSize(def, b.dir || 0), wp = gridToWorld(b.x + (w - 1) * 0.5, b.z + (d - 1) * 0.5);
               built.group.position.set(wp.x, 0, wp.z); built.group.rotation.y = DIRS[b.dir || 0].angle; buildingsGroup.add(built.group);
               e = { group: built.group, anim: built.anim, dir: b.dir || 0 }; buildingMeshes.set(b.id, e);
@@ -4136,7 +4143,8 @@
       const Input = (() => {
         let selTool = null, bDir = 0, wStart = null, isD = false, dMode = null, lx = 0, ly = 0, dMoved = false, lPt = '', kDown = new Set();
         function setTool(t) { selTool = t; wStart = null; Graphics.setWirePreview(null); Graphics.setHoverTile(null, null, false, bDir, null); const bn = document.getElementById('toolHelperText'), cx = document.getElementById('btnCancelTool'); if (!t) { if (bn) bn.textContent = 'Select a structure below (Green = IN • Orange = OUT • Arrow = Facing)'; if (cx) cx.classList.add('hidden'); } else { const df = BUILDINGS[t]; if (bn) bn.textContent = t === 'power_wire' ? 'Click first powered node, then click second node within 9 tiles' : t === 'bulldoze' ? 'Click or drag over structures to demolish (50% refund)' : `Placing ${df?.name} ($${df?.cost}) — Press [R] to Rotate`; if (cx) cx.classList.remove('hidden'); } UI.renderBuildDock(); }
-        function rotateDir() { const sId = Graphics.getSelectedBuildingId(); if (!selTool && sId && state) { const b = getBuildingById(state, sId); if (b) { b.dir = ((b.dir || 0) + 1) % 4; SoundFX.play('wire'); UI.updateInspector(b); return; } } bDir = (bDir + 1) % 4; const bt = document.getElementById('btnRotateTool'); if (bt) bt.textContent = `Dir: ${DIRS[bDir].name} [R]`; SoundFX.play('wire'); }
+        function rotateDir() { const sId = Graphics.getSelectedBuildingId(); if (!selTool && sId && state) { const b = getBuildingById(state, sId); if (b) { const nd3 = ((b.dir || 0) + 1) % 4, ix3 = state.buildings.indexOf(b); if (ix3 < 0) return; state.buildings.splice(ix3, 1); const fit3 = canPlaceFootprint(state, b.type, b.x, b.z, nd3); state.buildings.splice(ix3, 0, b);
+            if (!fit3) { UI.toast('No room to rotate here.', 'rose'); return; } b.dir = nd3; SoundFX.play('wire'); UI.updateInspector(b); return; } } bDir = (bDir + 1) % 4; const bt = document.getElementById('btnRotateTool'); if (bt) bt.textContent = `Dir: ${DIRS[bDir].name} [R]`; SoundFX.play('wire'); }
         function applyToolAtGrid(gx, gz) { if (!state || !selTool) return; if (selTool === 'bulldoze') { const tg = getBuildingAt(state, gx, gz); if (tg && removeBuildingInState(state, tg.id)) { SoundFX.play('delete'); if (Graphics.getSelectedBuildingId() === tg.id) { Graphics.setSelectedBuilding(null); UI.closeInspector(); } } return; } if (selTool === 'power_wire') { const tg = getBuildingAt(state, gx, gz); if (!tg) return; if (!wStart) { wStart = tg; SoundFX.play('wire'); UI.toast(`Selected ${BUILDINGS[tg.type]?.name}. Click target.`, 'sky'); } else { const d = Math.hypot(getBuildingCenter(wStart).x - getBuildingCenter(tg).x, getBuildingCenter(wStart).z - getBuildingCenter(tg).z); if (d > 9.5) UI.toast('Too far! Max 9 tiles.', 'rose'); else if (state.money < 15) UI.toast('Not enough funds.', 'rose'); else if (addWireInState(state, wStart.id, tg.id)) { state.money -= 15; SoundFX.play('wire'); UI.toast('Line connected!', 'emerald'); } wStart = null; Graphics.setWirePreview(null); } return; } const df = BUILDINGS[selTool]; if (!df) return; if (state.money < df.cost) { UI.toast(`Need $${df.cost.toLocaleString()}.`, 'rose'); return; } if (placeBuildingInState(state, selTool, gx, gz, bDir, false)) { SoundFX.play('build'); if (df.housingCap) UI.toast(`🏠 ${df.name} built! +${df.housingCap} beds.`, 'emerald'); } }
 
         function init() {
@@ -4146,7 +4154,7 @@
           c.addEventListener('pointerup', e => { try { c.releasePointerCapture(e.pointerId); } catch (_) {} if (!dMoved && state) { const wp = Graphics.screenToWorld(e.clientX, e.clientY); if (wp) { const g = Graphics.worldToGrid(wp.x, wp.z); if (selTool) { if (dMode !== 'paint') applyToolAtGrid(g.x, g.z); } else { const clk = getBuildingAt(state, g.x, g.z); if (clk) { Graphics.setSelectedBuilding(clk.id); UI.openInspector(clk); } else { const t = state.tiles[g.z]?.[g.x]; if (t?.deposit) UI.toast(`⛏ ${DEPOSIT_PALETTE[t.deposit]?.label || t.deposit} — Place matching Extractor here!`, 'sky'); Graphics.setSelectedBuilding(null); UI.closeInspector(); } } } } isD = false; dMode = null; });
           c.addEventListener('wheel', e => { e.preventDefault(); if (e.ctrlKey || Graphics.getTrackpadMode() === 'zoom') Graphics.zoomCamera(e.deltaY * 0.018); else Graphics.panCamera(e.deltaX * 0.03, e.deltaY * 0.03); }, { passive: false });
           window.addEventListener('keydown', e => { if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return; const k = e.key.toLowerCase(); kDown.add(k); if (k === 'r') rotateDir(); else if (k === 't') UI.toggleResearchModal(); else if (k === 'p') setTool(selTool === 'power_wire' ? null : 'power_wire'); else if (k === 'x') setTool(selTool === 'bulldoze' ? null : 'bulldoze'); else if (k === 'escape') { setTool(null); Graphics.setSelectedBuilding(null); UI.closeInspector(); document.getElementById('researchModal')?.classList.add('hidden'); } else if (k === 'q') Graphics.rotateCamera(-0.15); else if (k === 'e') Graphics.rotateCamera(0.15); else if (k === '=' || k === '+') Graphics.zoomCamera(-2.5); else if (k === '-' || k === '_') Graphics.zoomCamera(2.5); });
-          window.addEventListener('keyup', e => kDown.delete(e.key.toLowerCase()));
+          window.addEventListener('keyup', e => kDown.delete(e.key.toLowerCase())); window.addEventListener('blur', () => kDown.clear());
         }
         function updateKeyboardPan(dt) { if (kDown.size === 0) return; const sp = 22 * dt; let dx = 0, dz = 0; if (kDown.has('w') || kDown.has('arrowup')) dz -= sp; if (kDown.has('s') || kDown.has('arrowdown')) dz += sp; if (kDown.has('a') || kDown.has('arrowleft')) dx -= sp; if (kDown.has('d') || kDown.has('arrowright')) dx += sp; if (dx !== 0 || dz !== 0) Graphics.panCamera(dx, dz); }
         return { init, setTool, rotateDir, getSelectedTool: () => selTool, getSelectedBuildingId: () => Graphics.getSelectedBuildingId(), clearSelectedBuilding: () => Graphics.setSelectedBuilding(null), updateKeyboardPan };
@@ -4235,7 +4243,7 @@
               if (!u) {
                 node.onclick = () => {
                   if (!rm) return toast(`Unlock prerequisite first!`, 'amber');
-                  if (!aff) return toast(`Need ${tc.rp} RP & $${tc.cost.toLocaleString()}.`, 'rose');
+                  if (!(state.rp >= tc.rp && state.money >= tc.cost)) return toast(`Need ${tc.rp} RP & $${tc.cost.toLocaleString()}.`, 'rose');
                   state.rp -= tc.rp; state.money -= tc.cost; state.unlockedTech[tc.id] = true;
                   SoundFX.play('unlock'); toast(`🔬 Researched: ${tc.name}!`, 'emerald');
                   renderResearchModal(); renderBuildDock();
@@ -4278,7 +4286,7 @@
           const m = document.getElementById('miniMapCanvas'); if (!m || !state) return; const c = m.getContext('2d'), s = m.width / GRID_SIZE;
           c.fillStyle = '#072540'; c.fillRect(0, 0, m.width, m.height);
           for (let z = 0; z < GRID_SIZE; z++) { for (let x = 0; x < GRID_SIZE; x++) { const t = state.tiles[z][x]; if (t.water) continue; c.fillStyle = t.deposit ? (DEPOSIT_PALETTE[t.deposit]?.css || '#c2593f') : t.beach ? '#c2b280' : '#2d5438'; c.fillRect(x * s, z * s, Math.ceil(s), Math.ceil(s)); } }
-          for (const b of state.buildings) { const d = BUILDINGS[b.type], { w, dp } = getFootprintSize(d, b.dir || 0);
+          for (const b of state.buildings) { const d = BUILDINGS[b.type], { w, d: dp } = getFootprintSize(d, b.dir || 0);
             if (mLayer === 'power') c.fillStyle = (d?.power || 0) < 0 ? '#facc15' : (b.powerRatio || 0) > 0.35 ? '#38bdf8' : '#f43f5e';
             else if (mLayer === 'pollution') c.fillStyle = (d?.pollution || 0) < 0 ? '#34d399' : (d?.pollution || 0) > 0 ? '#f97316' : '#64748b';
             else c.fillStyle = b.type === 'road' ? '#475569' : (d?.housingCap || 0) > 0 ? '#fbbf24' : (d?.power || 0) < 0 ? '#facc15' : '#38bdf8';
@@ -4293,7 +4301,7 @@
           const aqi = Math.round(state.aqi || 12); document.getElementById('hudPollution').textContent = `AQI ${aqi}`; const poS = document.getElementById('hudPollutionSub'); poS.textContent = aqi <= 25 ? 'Clean Air' : aqi <= 55 ? 'Moderate Haze' : 'Heavy Smog'; poS.className = `text-[10px] leading-tight ${aqi <= 25 ? 'text-teal-300' : aqi <= 55 ? 'text-amber-300' : 'text-rose-400'}`;
           const hs = state.lastHousingStats || { housed: 0, totalNeeded: 0, totalCap: 0, roadBonusCap: 0 }, hap = Math.round(state.happiness || 82), mo = getMoraleMultipliers(state);
           document.getElementById('hudHappiness').textContent = `👷 ${hs.housed}/${hs.totalNeeded} • ${hap}%`; document.getElementById('hudHappinessSub').textContent = hs.totalCap === 0 ? 'Build Homes for Workers' : `${hs.totalCap} Beds • ${mo.label}`;
-          document.getElementById('hudResearch').textContent = `${Math.floor(state.rp)} RP`;
+          document.getElementById('hudResearch').textContent = `${Math.floor(state.rp)} RP`; { const rm4 = document.getElementById('researchModal'); if (rm4 && !rm4.classList.contains('hidden')) { const c4 = document.getElementById('modalCashBalance'), r4 = document.getElementById('modalRpBalance'); if (c4) c4.textContent = `$${Math.floor(state.money).toLocaleString()}`; if (r4) r4.textContent = `${Math.floor(state.rp)} RP`; } }
           document.getElementById('wfHousingBadge').textContent = `${hs.housed} / ${hs.totalNeeded} Staffed (${hs.totalCap} Beds)`; document.getElementById('wfHousingBar').style.width = `${hs.totalNeeded > 0 ? Math.min(100, Math.round((hs.housed / hs.totalNeeded) * 100)) : (hs.totalCap > 0 ? 100 : 0)}%`; document.getElementById('wfHousingSub').textContent = hs.totalCap === 0 ? 'Build Worker Cottages to bring workers!' : `${hs.spareWorkers} reserve workers`; document.getElementById('wfRoadBonus').textContent = `+${hs.roadBonusCap || 0} Road`;
           document.getElementById('wfMoraleBadge').textContent = `${hap}% • ${mo.label}`; document.getElementById('wfMoraleBar').style.width = `${hap}%`; document.getElementById('wfSpeedMult').textContent = `${Math.round(mo.speedMult * 100)}%`; document.getElementById('wfMoneyMult').textContent = `${Math.round(mo.moneyMult * 100)}%`;
           const mb = state.lastMoraleBreakdown || {}; document.getElementById('wfCrewCount').textContent = mb.crewCount || 0; document.getElementById('wfFactorHousing').textContent = `${(mb.housing || 0) >= 0 ? '+' : ''}${mb.housing || 0}%`; document.getElementById('wfFactorEnv').textContent = `${(mb.env || 0) >= 0 ? '+' : ''}${mb.env || 0}%`; document.getElementById('wfFactorAmenities').textContent = `+${mb.amenities || 0}%`; document.getElementById('wfFactorPolicy').textContent = `${(mb.policy || 0) >= 0 ? '+' : ''}${mb.policy || 0}%`; document.getElementById('wfPayrollCost').textContent = `-$${mb.payrollPerMin || 0}/m`;
@@ -4358,7 +4366,7 @@
 
         function doLoadGame(payload, slot) {
           if (!payload || !payload.state) return false;
-          state = payload.state; nextBuildingId = payload.nextBuildingId || (state.buildings.length + 10); currentSaveSlot = slot;
+          try { Input.clearSelectedBuilding(); closeInspector(); } catch (e3) { } state = payload.state; nextBuildingId = payload.nextBuildingId || (state.buildings.length + 10); currentSaveSlot = slot;
           Graphics.rebuildStaticWorld(state); renderBuildDock(); updateHud(); 
           document.getElementById('titleOverlay')?.classList.add('hidden'); 
           toast(slot === 'AUTO' ? '💾 Autosave restored!' : `💾 Loaded from Slot ${slot}!`, 'emerald'); return true;
@@ -4370,7 +4378,7 @@
         }
 
         function showMainMenu() { updateMainMenuButtons(); document.getElementById('titleOverlay').classList.remove('hidden'); }
-        function startNewGame(sb) { state = createFreshState(sb); Graphics.rebuildStaticWorld(state); Graphics.focusWorld(0, 12); aCat = 'workforce'; renderBuildDock(); updateHud(); document.getElementById('titleOverlay')?.classList.add('hidden'); toast(sb ? '⚛️ Sandbox Mode active!' : '🎯 Guided Campaign started!', 'sky'); }
+        function startNewGame(sb) { try { Input.clearSelectedBuilding(); closeInspector(); } catch (e3) { } state = createFreshState(sb); Graphics.rebuildStaticWorld(state); Graphics.focusWorld(0, 12); aCat = 'workforce'; renderBuildDock(); updateHud(); document.getElementById('titleOverlay')?.classList.add('hidden'); toast(sb ? '⚛️ Sandbox Mode active!' : '🎯 Guided Campaign started!', 'sky'); }
 
         function init() {
           document.querySelectorAll('.speed-btn').forEach(b => { b.onclick = () => { if (!state) return; state.simSpeed = Number(b.dataset.speed); document.querySelectorAll('.speed-btn').forEach(x => { const a = Number(x.dataset.speed) === state.simSpeed; x.className = `speed-btn px-2 py-1 rounded-lg text-xs font-semibold cursor-pointer ${a ? 'bg-sky-500/30 text-sky-200 border border-sky-400/40' : 'text-slate-300 hover:bg-slate-700/60'}`; }); }; });
